@@ -41,6 +41,7 @@ export interface Expense {
   description?: string;
   location?: string;
   photo_url?: string;
+  vendor_payment_slip_url?: string;
   split_type: 'equal' | 'custom';
   created_at: number;
 }
@@ -73,11 +74,12 @@ export interface ReminderSettings {
 
 // Session data for multi-step operations
 export interface ExpenseSession {
-  step: 'amount' | 'description' | 'location' | 'photo' | 'users' | 'paid_by' | 'split_type' | 'custom_splits';
+  step: 'amount' | 'description' | 'location' | 'photo' | 'vendor_slip' | 'users' | 'paid_by' | 'split_type' | 'custom_splits';
   amount?: number;
   description?: string;
   location?: string;
   photo_url?: string;
+  vendor_payment_slip_url?: string;
   selected_users?: number[];
   paid_by?: number;
   split_type?: 'equal' | 'custom';

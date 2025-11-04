@@ -144,6 +144,55 @@ export async function handleExpensePhoto(
     session.photo_url = key;
   }
 
+  session.step = 'vendor_slip';
+
+  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
+    expirationTtl: 600
+  });
+
+  const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:vendor_slip');
+
+  await ctx.reply(
+    'Step 5: Send a photo of your payment slip to the vendor (bank transfer receipt, etc.)\n\n' +
+    '(Optional - this is proof that you paid the vendor/restaurant)',
+    { reply_markup: keyboard }
+  );
+}
+
+export async function handleVendorSlipPhoto(
+  ctx: Context,
+  db: Database,
+  kv: KVNamespace,
+  r2: R2Bucket,
+  session: ExpenseSession,
+  groupId: number,
+  userId: number
+) {
+  const photo = ctx.message?.photo;
+
+  if (photo && photo.length > 0) {
+    // Get the largest photo
+    const largestPhoto = photo[photo.length - 1];
+    const fileId = largestPhoto.file_id;
+
+    // Get file from Telegram
+    const file = await ctx.api.getFile(fileId);
+    const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
+
+    // Download and upload to R2
+    const response = await fetch(fileUrl);
+    const blob = await response.arrayBuffer();
+
+    const key = `vendor_slips/${groupId}/${Date.now()}_${fileId}.jpg`;
+    await r2.put(key, blob, {
+      httpMetadata: {
+        contentType: 'image/jpeg'
+      }
+    });
+
+    session.vendor_payment_slip_url = key;
+  }
+
   session.step = 'users';
 
   await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
@@ -172,7 +221,7 @@ export async function handleExpensePhoto(
   keyboard.text('Continue', 'expense_users_done');
 
   await ctx.reply(
-    'Step 5: Select the users to split this expense with:\n\n' +
+    'Step 6: Select the users to split this expense with:\n\n' +
     '(Click users to toggle selection, then click Continue)',
     { reply_markup: keyboard }
   );
@@ -283,7 +332,7 @@ export async function handleUsersDone(
   await ctx.answerCallbackQuery();
   await ctx.reply(
     `Selected ${session.selected_users.length} user(s) to split with.\n\n` +
-    'Step 6: Who paid the full amount?',
+    'Step 7: Who paid the full amount?',
     { reply_markup: keyboard }
   );
 }
@@ -318,7 +367,7 @@ export async function handlePaidBy(
   await ctx.answerCallbackQuery();
   await ctx.reply(
     `Paid by: ${payerName}\n\n` +
-    'Step 7: How should the bill be split?',
+    'Step 8: How should the bill be split?',
     { reply_markup: keyboard }
   );
 }
@@ -456,6 +505,7 @@ async function createExpense(
     description: session.description,
     location: session.location,
     photo_url: session.photo_url,
+    vendor_payment_slip_url: session.vendor_payment_slip_url,
     split_type: session.split_type!
   });
 
@@ -553,5 +603,7 @@ export async function handleSkip(
     await ctx.reply('Step 4: Send a photo of the bill/receipt (optional)', { reply_markup: keyboard });
   } else if (field === 'photo') {
     await handleExpensePhoto(ctx, db, kv, r2, session, groupId, userId);
+  } else if (field === 'vendor_slip') {
+    await handleVendorSlipPhoto(ctx, db, kv, r2, session, groupId, userId);
   }
 }

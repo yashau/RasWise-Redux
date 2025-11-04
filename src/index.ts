@@ -17,6 +17,7 @@ import {
   handleExpenseDescription,
   handleExpenseLocation,
   handleExpensePhoto,
+  handleVendorSlipPhoto,
   handleUserSelection,
   handleUsersDone,
   handlePaidBy,
@@ -219,6 +220,8 @@ export default {
 
           if (session.step === 'photo') {
             await handleExpensePhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, chatId, userId);
+          } else if (session.step === 'vendor_slip') {
+            await handleVendorSlipPhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, chatId, userId);
           }
         }
       });

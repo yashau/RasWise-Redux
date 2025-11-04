@@ -19,32 +19,67 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
   // Get user's unpaid splits
   const unpaidSplits = await db.getUserUnpaidSplits(userId, groupId);
 
-  if (unpaidSplits.length === 0) {
+  // Get user's payment history
+  const payments = await db.getUserPayments(userId, groupId);
+
+  if (unpaidSplits.length === 0 && payments.length === 0) {
     await ctx.api.sendMessage(
       userId,
-      '🎉 You have no pending expenses!' +
+      '🎉 You have no pending expenses and no payment history!' +
       (groupId ? ' (in this group)' : '')
     );
     return;
   }
 
-  let message = '📊 Your Pending Expenses:\n\n';
+  let message = '';
 
-  for (const split of unpaidSplits) {
-    const expense = split.expense;
-    const creator = await db.getUser(expense.created_by);
-    const creatorName = creator?.first_name || creator?.username || `User ${expense.created_by}`;
+  // Show pending expenses
+  if (unpaidSplits.length > 0) {
+    message += '📊 Your Pending Expenses:\n\n';
 
-    message += `💰 Expense #${expense.id}\n`;
-    message += `Amount owed: ${split.amount_owed.toFixed(2)}\n`;
-    if (expense.description) message += `Description: ${expense.description}\n`;
-    if (expense.location) message += `Location: ${expense.location}\n`;
-    message += `Created by: ${creatorName}\n`;
-    message += `Date: ${new Date(expense.created_at).toLocaleDateString()}\n`;
-    message += `\n`;
+    for (const split of unpaidSplits) {
+      const expense = split.expense;
+      const paidBy = await db.getUser(expense.paid_by);
+      const paidByName = paidBy?.first_name || paidBy?.username || `User ${expense.paid_by}`;
+
+      message += `💰 Expense #${expense.id}\n`;
+      message += `Total amount: ${expense.amount.toFixed(2)}\n`;
+      message += `Amount you owe: ${split.amount_owed.toFixed(2)}\n`;
+      if (expense.description) message += `Description: ${expense.description}\n`;
+      if (expense.location) message += `Location: ${expense.location}\n`;
+      if (expense.photo_url) message += `📷 Bill photo attached\n`;
+      if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
+      message += `Fronted by: ${paidByName}\n`;
+      message += `Date: ${new Date(expense.created_at).toLocaleDateString()}\n`;
+      message += `\n`;
+    }
+
+    message += `Total pending: ${unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0).toFixed(2)}\n`;
   }
 
-  message += `\nTotal pending: ${unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0).toFixed(2)}`;
+  // Show payment history
+  if (payments.length > 0) {
+    message += `\n━━━━━━━━━━━━━━━━\n\n`;
+    message += `💳 Your Payment History:\n\n`;
+
+    for (const payment of payments) {
+      const expense = payment.expense;
+      const paidTo = await db.getUser(payment.paid_to);
+      const paidToName = paidTo?.first_name || paidTo?.username || `User ${payment.paid_to}`;
+
+      message += `✅ Payment #${payment.id}\n`;
+      message += `Amount paid: ${payment.amount.toFixed(2)}\n`;
+      message += `Paid to: ${paidToName}\n`;
+      if (expense.description) message += `For: ${expense.description}\n`;
+      if (expense.location) message += `Location: ${expense.location}\n`;
+      if (payment.transfer_slip_url) message += `📷 Transfer slip attached\n`;
+      message += `Date: ${new Date(payment.paid_at).toLocaleDateString()}\n`;
+      message += `\n`;
+    }
+
+    message += `Total paid: ${payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}\n`;
+  }
+
   message += `\n\nUse /summary for a cumulative summary`;
   message += `\nUse /markpaid to mark expenses as paid`;
 
@@ -155,6 +190,13 @@ export async function handleHistory(ctx: Context, db: Database) {
 
     message += `💰 #${expense.id} - ${expense.amount.toFixed(2)}\n`;
     if (expense.description) message += `   ${expense.description}\n`;
+    if (expense.photo_url || expense.vendor_payment_slip_url) {
+      message += `   `;
+      if (expense.photo_url) message += `📷 Bill`;
+      if (expense.photo_url && expense.vendor_payment_slip_url) message += ` | `;
+      if (expense.vendor_payment_slip_url) message += `🧾 Vendor slip`;
+      message += `\n`;
+    }
     message += `   By: ${creatorName} | ${new Date(expense.created_at).toLocaleDateString()}\n`;
     message += `   Split: ${expense.split_type} among ${splits.length} user(s)\n`;
     message += `   Status: ${paidCount}/${splits.length} paid\n\n`;
@@ -196,6 +238,8 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
   message += `Amount: ${expense.amount.toFixed(2)}\n`;
   if (expense.description) message += `Description: ${expense.description}\n`;
   if (expense.location) message += `Location: ${expense.location}\n`;
+  if (expense.photo_url) message += `📷 Bill photo attached\n`;
+  if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
   message += `Created by: ${creatorName}\n`;
   message += `Date: ${new Date(expense.created_at).toLocaleDateString()}\n`;
   message += `Split type: ${expense.split_type}\n\n`;

@@ -72,6 +72,7 @@ describe('Handler Integration Tests', () => {
         paid_by: 111,
         amount: 300,
         description: 'Dinner',
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -92,6 +93,7 @@ describe('Handler Integration Tests', () => {
         paid_by: 111,
         amount: 300,
         description: 'Shopping',
+        vendor_payment_slip_url: undefined,
         split_type: 'custom'
       });
 
@@ -113,6 +115,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -121,6 +124,7 @@ describe('Handler Integration Tests', () => {
         created_by: 222,
         paid_by: 222,
         amount: 50,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -156,6 +160,7 @@ describe('Handler Integration Tests', () => {
         paid_by: 111,
         amount: 100,
         description: 'Test expense',
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -199,6 +204,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -207,6 +213,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 60,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -215,6 +222,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 40,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -240,7 +248,8 @@ describe('Handler Integration Tests', () => {
         paid_by: 111,
           amount: (i + 1) * 10,
           description: `Expense ${i + 1}`,
-          split_type: 'equal'
+          vendor_payment_slip_url: undefined,
+        split_type: 'equal'
         });
       }
 
@@ -265,6 +274,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -280,6 +290,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -327,6 +338,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -335,6 +347,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 50,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -358,6 +371,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 0,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 
@@ -373,6 +387,7 @@ describe('Handler Integration Tests', () => {
         created_by: 111,
         paid_by: 111,
         amount: 100,
+        vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
 

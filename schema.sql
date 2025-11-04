@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS expenses (
     amount REAL NOT NULL,
     description TEXT,
     location TEXT,
-    photo_url TEXT, -- R2 bucket URL
+    photo_url TEXT, -- R2 bucket URL for bill/receipt photo
+    vendor_payment_slip_url TEXT, -- R2 bucket URL for payment slip to vendor
     split_type TEXT NOT NULL, -- 'equal' or 'custom'
     created_at INTEGER NOT NULL,
     FOREIGN KEY (created_by) REFERENCES users(telegram_id),

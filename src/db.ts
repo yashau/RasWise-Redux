@@ -95,8 +95,8 @@ export class Database {
   // Expense operations
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
     const result = await this.db.prepare(`
-      INSERT INTO expenses (group_id, created_by, paid_by, amount, description, location, photo_url, split_type, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO expenses (group_id, created_by, paid_by, amount, description, location, photo_url, vendor_payment_slip_url, split_type, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
     `).bind(
       expense.group_id,
@@ -106,6 +106,7 @@ export class Database {
       expense.description || null,
       expense.location || null,
       expense.photo_url || null,
+      expense.vendor_payment_slip_url || null,
       expense.split_type,
       Date.now()
     ).first<{ id: number }>();
@@ -177,6 +178,7 @@ export class Database {
         description: row.description,
         location: row.location,
         photo_url: row.photo_url,
+        vendor_payment_slip_url: row.vendor_payment_slip_url,
         split_type: row.split_type,
         created_at: row.created_at
       }
@@ -201,6 +203,48 @@ export class Database {
       INSERT INTO payments (expense_split_id, paid_by, paid_to, amount, transfer_slip_url, paid_at)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(expense_split_id, paid_by, paid_to, amount, transfer_slip_url || null, Date.now()).run();
+  }
+
+  async getUserPayments(user_id: number, group_id?: number): Promise<(Payment & { expense: Expense })[]> {
+    let query = `
+      SELECT p.*, e.* FROM payments p
+      JOIN expense_splits es ON p.expense_split_id = es.id
+      JOIN expenses e ON es.expense_id = e.id
+      WHERE p.paid_by = ?
+    `;
+    const bindings: any[] = [user_id];
+
+    if (group_id) {
+      query += ` AND e.group_id = ?`;
+      bindings.push(group_id);
+    }
+
+    query += ` ORDER BY p.paid_at DESC`;
+
+    const result = await this.db.prepare(query).bind(...bindings).all<any>();
+
+    return (result.results || []).map(row => ({
+      id: row.id,
+      expense_split_id: row.expense_split_id,
+      paid_by: row.paid_by,
+      paid_to: row.paid_to,
+      amount: row.amount,
+      transfer_slip_url: row.transfer_slip_url,
+      paid_at: row.paid_at,
+      expense: {
+        id: row.expense_id,
+        group_id: row.group_id,
+        created_by: row.created_by,
+        paid_by: row.paid_by,
+        amount: row.amount,
+        description: row.description,
+        location: row.location,
+        photo_url: row.photo_url,
+        vendor_payment_slip_url: row.vendor_payment_slip_url,
+        split_type: row.split_type,
+        created_at: row.created_at
+      }
+    }));
   }
 
   // Summary operations
