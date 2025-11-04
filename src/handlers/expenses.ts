@@ -262,6 +262,49 @@ export async function handleUsersDone(
     });
   }
 
+  session.step = 'paid_by';
+  await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+
+  // Get registered users to show who can be selected as payer
+  const users = await db.getGroupUsers(groupId);
+  const keyboard = new InlineKeyboard();
+
+  // Add buttons for each user
+  users.forEach((user, idx) => {
+    const name = user.first_name || user.username || `User ${user.telegram_id}`;
+    const isCurrentUser = user.telegram_id === userId;
+    keyboard.text(
+      isCurrentUser ? `${name} (You)` : name,
+      `expense_paidby:${user.telegram_id}`
+    );
+    if (idx % 2 === 1) keyboard.row();
+  });
+
+  await ctx.answerCallbackQuery();
+  await ctx.reply(
+    `Selected ${session.selected_users.length} user(s) to split with.\n\n` +
+    'Step 6: Who paid the full amount?',
+    { reply_markup: keyboard }
+  );
+}
+
+export async function handlePaidBy(
+  ctx: Context,
+  db: Database,
+  kv: KVNamespace,
+  paidById: number,
+  groupId: number,
+  userId: number
+) {
+  const sessionKey = `expense_session:${groupId}:${userId}`;
+  const sessionData = await kv.get(sessionKey);
+
+  if (!sessionData) {
+    return ctx.answerCallbackQuery({ text: 'Session expired' });
+  }
+
+  const session: ExpenseSession = JSON.parse(sessionData);
+  session.paid_by = paidById;
   session.step = 'split_type';
   await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
 
@@ -269,10 +312,13 @@ export async function handleUsersDone(
     .text('Equal Split', 'expense_split:equal').row()
     .text('Custom Split', 'expense_split:custom');
 
+  const payer = await db.getUser(paidById);
+  const payerName = payer?.first_name || payer?.username || `User ${paidById}`;
+
   await ctx.answerCallbackQuery();
   await ctx.reply(
-    `Selected ${session.selected_users.length} user(s).\n\n` +
-    'Step 6: How should the bill be split?',
+    `Paid by: ${payerName}\n\n` +
+    'Step 7: How should the bill be split?',
     { reply_markup: keyboard }
   );
 }
@@ -308,7 +354,10 @@ export async function handleSplitType(
     await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
 
     const users = await db.getGroupUsers(groupId);
-    const selectedUsers = users.filter(u => session.selected_users!.includes(u.telegram_id));
+    // Filter out the payer from custom split entry
+    const selectedUsers = users.filter(u =>
+      session.selected_users!.includes(u.telegram_id) && u.telegram_id !== session.paid_by
+    );
 
     let message = 'Please enter the amount for each person:\n\n';
     selectedUsers.forEach((user, idx) => {
@@ -402,6 +451,7 @@ async function createExpense(
   const expenseId = await db.createExpense({
     group_id: groupId,
     created_by: userId,
+    paid_by: session.paid_by!,
     amount: session.amount!,
     description: session.description,
     location: session.location,
@@ -409,16 +459,24 @@ async function createExpense(
     split_type: session.split_type!
   });
 
-  // Create splits
+  // Create splits - EXCLUDE the payer from splits
   const splitAmounts: { [key: number]: number } = {};
+  const usersToSplit = session.selected_users!.filter(uid => uid !== session.paid_by);
 
   if (session.split_type === 'equal') {
-    const perPerson = session.amount! / session.selected_users!.length;
-    session.selected_users!.forEach(uid => {
+    // Split equally among users EXCLUDING the payer
+    const perPerson = session.amount! / usersToSplit.length;
+    usersToSplit.forEach(uid => {
       splitAmounts[uid] = perPerson;
     });
   } else {
-    Object.assign(splitAmounts, session.custom_splits);
+    // Custom split - only include users who aren't the payer
+    Object.keys(session.custom_splits!).forEach(uidStr => {
+      const uid = parseInt(uidStr);
+      if (uid !== session.paid_by) {
+        splitAmounts[uid] = session.custom_splits![uid];
+      }
+    });
   }
 
   // Save splits to database
@@ -431,11 +489,15 @@ async function createExpense(
 
   // Build confirmation message
   const users = await db.getGroupUsers(groupId);
+  const payer = users.find(u => u.telegram_id === session.paid_by);
+  const payerName = payer?.first_name || payer?.username || `User ${session.paid_by}`;
+
   let message = '✅ Expense added successfully!\n\n';
-  message += `💰 Amount: ${session.amount}\n`;
+  message += `💰 Total Amount: ${session.amount}\n`;
+  message += `💳 Paid by: ${payerName}\n`;
   if (session.description) message += `📝 Description: ${session.description}\n`;
   if (session.location) message += `📍 Location: ${session.location}\n`;
-  message += `\n👥 Split among ${session.selected_users!.length} user(s):\n`;
+  message += `\n👥 To be paid by ${Object.keys(splitAmounts).length} user(s):\n`;
 
   for (const [uid, amount] of Object.entries(splitAmounts)) {
     const user = users.find(u => u.telegram_id === parseInt(uid));

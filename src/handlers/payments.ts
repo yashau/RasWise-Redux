@@ -56,25 +56,25 @@ export async function handleMarkPaidCallback(
 
   const expense = split.expense;
 
-  // Get creator's payment details
-  const creatorPayment = await db.getActivePaymentDetail(expense.created_by);
+  // Get payer's payment details (person who paid the full amount)
+  const payerPayment = await db.getActivePaymentDetail(expense.paid_by);
 
-  if (!creatorPayment) {
+  if (!payerPayment) {
     await ctx.answerCallbackQuery();
     return ctx.reply(
-      '⚠️ The person who created this expense hasn\'t set up payment details yet.\n' +
+      '⚠️ The person who paid this expense hasn\'t set up payment details yet.\n' +
       'Ask them to use /setpayment to add their payment information.'
     );
   }
 
-  const paymentInfo = JSON.parse(creatorPayment.payment_info);
-  const creator = await db.getUser(expense.created_by);
-  const creatorName = creator?.first_name || creator?.username || `User ${expense.created_by}`;
+  const paymentInfo = JSON.parse(payerPayment.payment_info);
+  const payer = await db.getUser(expense.paid_by);
+  const payerName = payer?.first_name || payer?.username || `User ${expense.paid_by}`;
 
   let message = `💸 Payment Details for Expense #${expense.id}:\n\n`;
   message += `Amount to pay: ${split.amount_owed.toFixed(2)}\n`;
   if (expense.description) message += `For: ${expense.description}\n`;
-  message += `\nPay to: ${creatorName}\n`;
+  message += `\nPay to: ${payerName}\n`;
   message += `Bank Account: ${paymentInfo.account_number}\n\n`;
   message += `Once you've paid, click the button below to mark as paid.`;
 
@@ -110,28 +110,28 @@ export async function handleConfirmPaid(
   // Mark as paid
   await db.markSplitAsPaid(splitId);
 
-  // Record payment transaction
+  // Record payment transaction (paid_by is who receives the money)
   await db.recordPayment(
     splitId,
     userId,
-    expense.created_by,
+    expense.paid_by,
     split.amount_owed
   );
 
-  // Notify the creator
-  const payer = await db.getUser(userId);
-  const payerName = payer?.first_name || payer?.username || `User ${userId}`;
+  // Notify the person who paid the expense
+  const payingUser = await db.getUser(userId);
+  const payingUserName = payingUser?.first_name || payingUser?.username || `User ${userId}`;
 
   try {
     await ctx.api.sendMessage(
-      expense.created_by,
-      `✅ ${payerName} marked their payment as paid!\n\n` +
+      expense.paid_by,
+      `✅ ${payingUserName} marked their payment as paid!\n\n` +
       `Expense #${expense.id}\n` +
       `Amount: ${split.amount_owed.toFixed(2)}\n` +
       (expense.description ? `Description: ${expense.description}\n` : '')
     );
   } catch (error) {
-    // Creator hasn't started the bot, that's okay
+    // Payer hasn't started the bot, that's okay
   }
 
   await ctx.answerCallbackQuery({ text: 'Marked as paid!' });
@@ -140,7 +140,7 @@ export async function handleConfirmPaid(
     `Expense #${expense.id}\n` +
     `Amount: ${split.amount_owed.toFixed(2)}\n` +
     (expense.description ? `Description: ${expense.description}\n` : '') +
-    `\nThe expense creator has been notified.`
+    `\nThe person who paid has been notified.`
   );
 }
 
@@ -160,9 +160,9 @@ export async function handleViewPayments(ctx: Context, db: Database) {
   }
 
   // This shows who owes you money
-  // Get all expenses created by this user
+  // Get all expenses paid by this user (where you fronted the money)
   const expenses = await db.getGroupExpenses(groupId!);
-  const myExpenses = expenses.filter(e => e.created_by === userId);
+  const myExpenses = expenses.filter(e => e.paid_by === userId);
 
   let totalOwed = 0;
   let totalPaid = 0;

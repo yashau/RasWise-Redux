@@ -36,13 +36,15 @@ CREATE TABLE IF NOT EXISTS expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL,
     created_by INTEGER NOT NULL,
+    paid_by INTEGER NOT NULL, -- who paid the full amount
     amount REAL NOT NULL,
     description TEXT,
     location TEXT,
     photo_url TEXT, -- R2 bucket URL
     split_type TEXT NOT NULL, -- 'equal' or 'custom'
     created_at INTEGER NOT NULL,
-    FOREIGN KEY (created_by) REFERENCES users(telegram_id)
+    FOREIGN KEY (created_by) REFERENCES users(telegram_id),
+    FOREIGN KEY (paid_by) REFERENCES users(telegram_id)
 );
 
 -- Expense splits table

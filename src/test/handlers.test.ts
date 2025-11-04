@@ -69,6 +69,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 300,
         description: 'Dinner',
         split_type: 'equal'
@@ -88,6 +89,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 300,
         description: 'Shopping',
         split_type: 'custom'
@@ -109,6 +111,7 @@ describe('Handler Integration Tests', () => {
       const expense1 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -116,6 +119,7 @@ describe('Handler Integration Tests', () => {
       const expense2 = await db.createExpense({
         group_id: -100,
         created_by: 222,
+        paid_by: 222,
         amount: 50,
         split_type: 'equal'
       });
@@ -149,6 +153,7 @@ describe('Handler Integration Tests', () => {
       expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         description: 'Test expense',
         split_type: 'equal'
@@ -192,6 +197,7 @@ describe('Handler Integration Tests', () => {
       const expense1 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -199,6 +205,7 @@ describe('Handler Integration Tests', () => {
       const expense2 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 60,
         split_type: 'equal'
       });
@@ -206,6 +213,7 @@ describe('Handler Integration Tests', () => {
       const expense3 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 40,
         split_type: 'equal'
       });
@@ -229,6 +237,7 @@ describe('Handler Integration Tests', () => {
         await db.createExpense({
           group_id: -100,
           created_by: 111,
+        paid_by: 111,
           amount: (i + 1) * 10,
           description: `Expense ${i + 1}`,
           split_type: 'equal'
@@ -254,6 +263,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -268,6 +278,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -314,6 +325,7 @@ describe('Handler Integration Tests', () => {
       const expense1 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -321,6 +333,7 @@ describe('Handler Integration Tests', () => {
       const expense2 = await db.createExpense({
         group_id: -200,
         created_by: 111,
+        paid_by: 111,
         amount: 50,
         split_type: 'equal'
       });
@@ -343,6 +356,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 0,
         split_type: 'equal'
       });
@@ -357,6 +371,7 @@ describe('Handler Integration Tests', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });

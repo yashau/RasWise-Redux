@@ -19,6 +19,7 @@ import {
   handleExpensePhoto,
   handleUserSelection,
   handleUsersDone,
+  handlePaidBy,
   handleSplitType,
   handleCustomSplit,
   handleSkip
@@ -128,6 +129,11 @@ export default {
 
       bot.callbackQuery('expense_users_done', async (ctx) => {
         await handleUsersDone(ctx, db, env.KV, ctx.chat!.id, ctx.from!.id);
+      });
+
+      bot.callbackQuery(/^expense_paidby:(.+)$/, async (ctx) => {
+        const paidById = parseInt(ctx.match![1]);
+        await handlePaidBy(ctx, db, env.KV, paidById, ctx.chat!.id, ctx.from!.id);
       });
 
       bot.callbackQuery(/^expense_split:(.+)$/, async (ctx) => {

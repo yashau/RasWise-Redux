@@ -169,6 +169,7 @@ describe('Database', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100.50,
         description: 'Dinner',
         location: 'Restaurant',
@@ -189,6 +190,7 @@ describe('Database', () => {
       await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 50,
         split_type: 'equal'
       });
@@ -196,6 +198,7 @@ describe('Database', () => {
       await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 75,
         split_type: 'custom'
       });
@@ -209,6 +212,7 @@ describe('Database', () => {
         await db.createExpense({
           group_id: -100,
           created_by: 111,
+        paid_by: 111,
           amount: i * 10,
           split_type: 'equal'
         });
@@ -236,6 +240,7 @@ describe('Database', () => {
       expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -275,6 +280,7 @@ describe('Database', () => {
       const newExpenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -300,6 +306,7 @@ describe('Database', () => {
       expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -327,6 +334,7 @@ describe('Database', () => {
       const expense1 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
@@ -334,6 +342,7 @@ describe('Database', () => {
       const expense2 = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 50,
         split_type: 'equal'
       });
@@ -394,6 +403,7 @@ describe('Database', () => {
       const expenseId = await db.createExpense({
         group_id: -100,
         created_by: 111,
+        paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });

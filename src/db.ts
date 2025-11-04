@@ -95,12 +95,13 @@ export class Database {
   // Expense operations
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
     const result = await this.db.prepare(`
-      INSERT INTO expenses (group_id, created_by, amount, description, location, photo_url, split_type, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO expenses (group_id, created_by, paid_by, amount, description, location, photo_url, split_type, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
     `).bind(
       expense.group_id,
       expense.created_by,
+      expense.paid_by,
       expense.amount,
       expense.description || null,
       expense.location || null,
@@ -171,6 +172,7 @@ export class Database {
         id: row.expense_id,
         group_id: row.group_id,
         created_by: row.created_by,
+        paid_by: row.paid_by,
         amount: row.amount,
         description: row.description,
         location: row.location,

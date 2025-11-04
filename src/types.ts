@@ -36,6 +36,7 @@ export interface Expense {
   id: number;
   group_id: number;
   created_by: number;
+  paid_by: number;
   amount: number;
   description?: string;
   location?: string;
@@ -71,12 +72,13 @@ export interface ReminderSettings {
 
 // Session data for multi-step operations
 export interface ExpenseSession {
-  step: 'amount' | 'description' | 'location' | 'photo' | 'users' | 'split_type' | 'custom_splits';
+  step: 'amount' | 'description' | 'location' | 'photo' | 'users' | 'paid_by' | 'split_type' | 'custom_splits';
   amount?: number;
   description?: string;
   location?: string;
   photo_url?: string;
   selected_users?: number[];
+  paid_by?: number;
   split_type?: 'equal' | 'custom';
   custom_splits?: { [user_id: number]: number };
 }
