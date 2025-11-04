@@ -320,6 +320,88 @@ describe('Database', () => {
       await db.recordPayment(splitId, 222, 111, 50);
       // Payment recorded successfully - no error thrown
     });
+
+    it('should get user payments', async () => {
+      await db.recordPayment(splitId, 222, 111, 50);
+
+      const payments = await db.getUserPayments(222);
+      expect(payments).toHaveLength(1);
+      expect(payments[0].paid_by).toBe(222);
+      expect(payments[0].paid_to).toBe(111);
+      expect(payments[0].amount).toBe(50);
+      expect(payments[0].expense).toBeDefined();
+      expect(payments[0].expense.id).toBe(expenseId);
+    });
+
+    it('should get user payments for specific group', async () => {
+      await db.recordPayment(splitId, 222, 111, 50);
+
+      // Create another expense in a different group
+      const expense2 = await db.createExpense({
+        group_id: -200,
+        created_by: 111,
+        paid_by: 111,
+        amount: 75,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expense2, 222, 37.5);
+      const splits2 = await db.getExpenseSplits(expense2);
+      await db.recordPayment(splits2[0].id, 222, 111, 37.5);
+
+      // Get payments for specific group
+      const paymentsGroup1 = await db.getUserPayments(222, -100);
+      expect(paymentsGroup1).toHaveLength(1);
+      expect(paymentsGroup1[0].expense.group_id).toBe(-100);
+
+      const paymentsGroup2 = await db.getUserPayments(222, -200);
+      expect(paymentsGroup2).toHaveLength(1);
+      expect(paymentsGroup2[0].expense.group_id).toBe(-200);
+
+      // Get all payments
+      const allPayments = await db.getUserPayments(222);
+      expect(allPayments).toHaveLength(2);
+    });
+
+    it('should return empty array when user has no payments', async () => {
+      const payments = await db.getUserPayments(222);
+      expect(payments).toEqual([]);
+    });
+
+    it('should record payment with transfer slip URL', async () => {
+      await db.recordPayment(splitId, 222, 111, 50, 'https://example.com/slip.jpg');
+
+      const payments = await db.getUserPayments(222);
+      expect(payments).toHaveLength(1);
+      expect(payments[0].transfer_slip_url).toBe('https://example.com/slip.jpg');
+    });
+
+    it('should order payments by paid_at descending', async () => {
+      // Create multiple expenses and payments
+      const expense2 = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 75,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expense2, 222, 37.5);
+      const splits2 = await db.getExpenseSplits(expense2);
+
+      // Record first payment
+      await db.recordPayment(splitId, 222, 111, 50);
+
+      // Wait a bit to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Record second payment
+      await db.recordPayment(splits2[0].id, 222, 111, 37.5);
+
+      const payments = await db.getUserPayments(222);
+      expect(payments).toHaveLength(2);
+      // Most recent payment should be first
+      expect(payments[0].amount).toBe(37.5);
+      expect(payments[1].amount).toBe(50);
+    });
   });
 
   describe('Summary operations', () => {
@@ -417,6 +499,121 @@ describe('Database', () => {
     it('should return empty array when no groups have unpaid expenses', async () => {
       const groups = await db.getGroupsForReminder();
       expect(groups).toEqual([]);
+    });
+  });
+
+  describe('unregisterUserFromGroup', () => {
+    beforeEach(async () => {
+      await db.createUser({ telegram_id: 111, first_name: 'User1' });
+      await db.createUser({ telegram_id: 222, first_name: 'User2' });
+      await db.registerUserInGroup(-100, 111, 111);
+      await db.registerUserInGroup(-100, 222, 111);
+    });
+
+    it('should successfully unregister user with no pending expenses', async () => {
+      const result = await db.unregisterUserFromGroup(-100, 222);
+
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('User successfully unregistered from group.');
+
+      const isRegistered = await db.isUserInGroup(-100, 222);
+      expect(isRegistered).toBe(false);
+    });
+
+    it('should prevent unregistering user with unpaid expenses', async () => {
+      // Create an expense that user 222 owes
+      const expenseId = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 100,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expenseId, 222, 50);
+
+      const result = await db.unregisterUserFromGroup(-100, 222);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Cannot unregister user');
+      expect(result.message).toContain('1 unpaid expense');
+      expect(result.message).toContain('50.00');
+
+      // User should still be registered
+      const isRegistered = await db.isUserInGroup(-100, 222);
+      expect(isRegistered).toBe(true);
+    });
+
+    it('should allow unregistering user after all expenses are paid', async () => {
+      // Create and pay an expense
+      const expenseId = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 100,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expenseId, 222, 50);
+      const splits = await db.getExpenseSplits(expenseId);
+      await db.markSplitAsPaid(splits[0].id);
+
+      const result = await db.unregisterUserFromGroup(-100, 222);
+
+      expect(result.success).toBe(true);
+      const isRegistered = await db.isUserInGroup(-100, 222);
+      expect(isRegistered).toBe(false);
+    });
+
+    it('should prevent unregistering with multiple unpaid expenses', async () => {
+      // Create multiple expenses
+      const expense1 = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 100,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expense1, 222, 50);
+
+      const expense2 = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 60,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expense2, 222, 30);
+
+      const result = await db.unregisterUserFromGroup(-100, 222);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('2 unpaid expense');
+      expect(result.message).toContain('80.00'); // 50 + 30
+    });
+
+    it('should only check expenses for the specific group', async () => {
+      // Create expense in group -100
+      const expense1 = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 100,
+        split_type: 'equal'
+      });
+      await db.createExpenseSplit(expense1, 222, 50);
+
+      // Register user in another group with no expenses
+      await db.registerUserInGroup(-200, 222, 111);
+
+      // Should be able to unregister from group -200 even though they owe in -100
+      const result = await db.unregisterUserFromGroup(-200, 222);
+
+      expect(result.success).toBe(true);
+      const isRegisteredIn200 = await db.isUserInGroup(-200, 222);
+      expect(isRegisteredIn200).toBe(false);
+
+      // But should still be registered in -100
+      const isRegisteredIn100 = await db.isUserInGroup(-100, 222);
+      expect(isRegisteredIn100).toBe(true);
     });
   });
 });

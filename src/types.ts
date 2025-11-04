@@ -70,6 +70,7 @@ export interface ReminderSettings {
   enabled: number;
   reminder_time: string;
   last_reminder_sent?: number;
+  timezone_offset: number; // Hours offset from UTC (e.g., +5.5, -5)
 }
 
 // Session data for multi-step operations

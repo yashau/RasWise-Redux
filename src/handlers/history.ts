@@ -1,6 +1,7 @@
 import { Context } from 'grammy/web';
 import { Database } from '../db';
 import type { User } from '../types';
+import { formatDate, formatUserName, formatAmount, sendDMWithFallback } from '../utils';
 
 export async function handleMyExpenses(ctx: Context, db: Database) {
   const userId = ctx.from!.id;
@@ -15,6 +16,9 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
     // Notify in group that we're DMing
     await ctx.reply('📊 I\'ll send you your expense details in a DM!');
   }
+
+  // Get timezone offset for the group
+  const timezoneOffset = groupId ? await db.getGroupTimezone(groupId) : 0;
 
   // Get user's unpaid splits
   const unpaidSplits = await db.getUserUnpaidSplits(userId, groupId);
@@ -40,21 +44,21 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
     for (const split of unpaidSplits) {
       const expense = split.expense;
       const paidBy = await db.getUser(expense.paid_by);
-      const paidByName = paidBy?.first_name || paidBy?.username || `User ${expense.paid_by}`;
+      const paidByName = formatUserName(paidBy, expense.paid_by);
 
       message += `💰 Expense #${expense.id}\n`;
-      message += `Total amount: ${expense.amount.toFixed(2)}\n`;
-      message += `Amount you owe: ${split.amount_owed.toFixed(2)}\n`;
+      message += `Total amount: ${formatAmount(expense.amount)}\n`;
+      message += `Amount you owe: ${formatAmount(split.amount_owed)}\n`;
       if (expense.description) message += `Description: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
       if (expense.photo_url) message += `📷 Bill photo attached\n`;
       if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
       message += `Fronted by: ${paidByName}\n`;
-      message += `Date: ${new Date(expense.created_at).toLocaleDateString()}\n`;
+      message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
       message += `\n`;
     }
 
-    message += `Total pending: ${unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0).toFixed(2)}\n`;
+    message += `Total pending: ${formatAmount(unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0))}\n`;
   }
 
   // Show payment history
@@ -65,31 +69,25 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
     for (const payment of payments) {
       const expense = payment.expense;
       const paidTo = await db.getUser(payment.paid_to);
-      const paidToName = paidTo?.first_name || paidTo?.username || `User ${payment.paid_to}`;
+      const paidToName = formatUserName(paidTo, payment.paid_to);
 
       message += `✅ Payment #${payment.id}\n`;
-      message += `Amount paid: ${payment.amount.toFixed(2)}\n`;
+      message += `Amount paid: ${formatAmount(payment.amount)}\n`;
       message += `Paid to: ${paidToName}\n`;
       if (expense.description) message += `For: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
       if (payment.transfer_slip_url) message += `📷 Transfer slip attached\n`;
-      message += `Date: ${new Date(payment.paid_at).toLocaleDateString()}\n`;
+      message += `Date: ${formatDate(payment.paid_at, timezoneOffset)}\n`;
       message += `\n`;
     }
 
-    message += `Total paid: ${payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}\n`;
+    message += `Total paid: ${formatAmount(payments.reduce((sum, p) => sum + p.amount, 0))}\n`;
   }
 
   message += `\n\nUse /summary for a cumulative summary`;
   message += `\nUse /markpaid to mark expenses as paid`;
 
-  try {
-    await ctx.api.sendMessage(userId, message);
-  } catch (error) {
-    await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
-    );
-  }
+  await sendDMWithFallback(ctx, userId, message);
 }
 
 export async function handleSummary(ctx: Context, db: Database) {
@@ -121,7 +119,7 @@ export async function handleSummary(ctx: Context, db: Database) {
     if (!oweByPerson[creatorId]) {
       const creator = await db.getUser(creatorId);
       oweByPerson[creatorId] = {
-        name: creator?.first_name || creator?.username || `User ${creatorId}`,
+        name: formatUserName(creator, creatorId),
         amount: 0,
         count: 0
       };
@@ -131,14 +129,14 @@ export async function handleSummary(ctx: Context, db: Database) {
   }
 
   let message = '📊 Your Expense Summary:\n\n';
-  message += `💸 Total Unpaid: ${summary.total_owed.toFixed(2)}\n`;
-  message += `✅ Total Paid: ${summary.total_paid.toFixed(2)}\n`;
+  message += `💸 Total Unpaid: ${formatAmount(summary.total_owed)}\n`;
+  message += `✅ Total Paid: ${formatAmount(summary.total_paid)}\n`;
   message += `📝 Pending Expenses: ${summary.unpaid_count}\n\n`;
 
   if (Object.keys(oweByPerson).length > 0) {
     message += '💰 You owe:\n';
     for (const [creatorId, info] of Object.entries(oweByPerson)) {
-      message += `  • ${info.name}: ${info.amount.toFixed(2)} (${info.count} expense${info.count > 1 ? 's' : ''})\n`;
+      message += `  • ${info.name}: ${formatAmount(info.amount)} (${info.count} expense${info.count > 1 ? 's' : ''})\n`;
     }
   } else {
     message += '🎉 You don\'t owe anyone!\n';
@@ -147,13 +145,7 @@ export async function handleSummary(ctx: Context, db: Database) {
   message += `\nUse /myexpenses to see detailed breakdown`;
   message += `\nUse /markpaid to mark expenses as paid`;
 
-  try {
-    await ctx.api.sendMessage(userId, message);
-  } catch (error) {
-    await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
-    );
-  }
+  await sendDMWithFallback(ctx, userId, message);
 }
 
 export async function handleHistory(ctx: Context, db: Database) {
@@ -171,6 +163,9 @@ export async function handleHistory(ctx: Context, db: Database) {
     return;
   }
 
+  // Get timezone offset for the group
+  const timezoneOffset = await db.getGroupTimezone(groupId);
+
   // Get all expenses for the group
   const expenses = await db.getGroupExpenses(groupId, 20); // Last 20 expenses
 
@@ -183,12 +178,12 @@ export async function handleHistory(ctx: Context, db: Database) {
 
   for (const expense of expenses) {
     const creator = await db.getUser(expense.created_by);
-    const creatorName = creator?.first_name || creator?.username || `User ${expense.created_by}`;
+    const creatorName = formatUserName(creator, expense.created_by);
 
     const splits = await db.getExpenseSplits(expense.id);
     const paidCount = splits.filter(s => s.paid === 1).length;
 
-    message += `💰 #${expense.id} - ${expense.amount.toFixed(2)}\n`;
+    message += `💰 #${expense.id} - ${formatAmount(expense.amount)}\n`;
     if (expense.description) message += `   ${expense.description}\n`;
     if (expense.photo_url || expense.vendor_payment_slip_url) {
       message += `   `;
@@ -197,20 +192,14 @@ export async function handleHistory(ctx: Context, db: Database) {
       if (expense.vendor_payment_slip_url) message += `🧾 Vendor slip`;
       message += `\n`;
     }
-    message += `   By: ${creatorName} | ${new Date(expense.created_at).toLocaleDateString()}\n`;
+    message += `   By: ${creatorName} | ${formatDate(expense.created_at, timezoneOffset)}\n`;
     message += `   Split: ${expense.split_type} among ${splits.length} user(s)\n`;
     message += `   Status: ${paidCount}/${splits.length} paid\n\n`;
   }
 
   message += `\nShowing last ${expenses.length} expenses`;
 
-  try {
-    await ctx.api.sendMessage(userId, message);
-  } catch (error) {
-    await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
-    );
-  }
+  await sendDMWithFallback(ctx, userId, message);
 }
 
 export async function handleExpenseDetail(ctx: Context, db: Database, expenseId: number) {
@@ -222,6 +211,9 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
     return ctx.reply('Expense not found.');
   }
 
+  // Get timezone offset for the group
+  const timezoneOffset = await db.getGroupTimezone(expense.group_id);
+
   // Check if user is part of this expense or created it
   const splits = await db.getExpenseSplits(expenseId);
   const userSplit = splits.find(s => s.user_id === userId);
@@ -232,24 +224,24 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
   }
 
   const creator = await db.getUser(expense.created_by);
-  const creatorName = creator?.first_name || creator?.username || `User ${expense.created_by}`;
+  const creatorName = formatUserName(creator, expense.created_by);
 
   let message = `💰 Expense #${expense.id} Details:\n\n`;
-  message += `Amount: ${expense.amount.toFixed(2)}\n`;
+  message += `Amount: ${formatAmount(expense.amount)}\n`;
   if (expense.description) message += `Description: ${expense.description}\n`;
   if (expense.location) message += `Location: ${expense.location}\n`;
   if (expense.photo_url) message += `📷 Bill photo attached\n`;
   if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
   message += `Created by: ${creatorName}\n`;
-  message += `Date: ${new Date(expense.created_at).toLocaleDateString()}\n`;
+  message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
   message += `Split type: ${expense.split_type}\n\n`;
 
   message += `👥 Split details:\n`;
   for (const split of splits) {
     const user = await db.getUser(split.user_id);
-    const userName = user?.first_name || user?.username || `User ${split.user_id}`;
+    const userName = formatUserName(user, split.user_id);
     const status = split.paid ? '✅ Paid' : '❌ Unpaid';
-    message += `  • ${userName}: ${split.amount_owed.toFixed(2)} ${status}\n`;
+    message += `  • ${userName}: ${formatAmount(split.amount_owed)} ${status}\n`;
   }
 
   // Send to user's DM if possible, otherwise reply in chat

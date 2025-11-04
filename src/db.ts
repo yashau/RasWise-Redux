@@ -92,6 +92,29 @@ export class Database {
     return result !== null;
   }
 
+  async unregisterUserFromGroup(group_id: number, user_id: number): Promise<{ success: boolean; message: string }> {
+    // Check if user has any unpaid expenses in this group
+    const unpaidSplits = await this.getUserUnpaidSplits(user_id, group_id);
+
+    if (unpaidSplits.length > 0) {
+      const totalOwed = unpaidSplits.reduce((sum, split) => sum + split.amount_owed, 0);
+      return {
+        success: false,
+        message: `Cannot unregister user. They have ${unpaidSplits.length} unpaid expense(s) totaling ${totalOwed.toFixed(2)}.`
+      };
+    }
+
+    // Remove user from group
+    await this.db.prepare(`
+      DELETE FROM group_users WHERE group_id = ? AND user_id = ?
+    `).bind(group_id, user_id).run();
+
+    return {
+      success: true,
+      message: 'User successfully unregistered from group.'
+    };
+  }
+
   // Expense operations
   async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
     const result = await this.db.prepare(`
@@ -207,7 +230,26 @@ export class Database {
 
   async getUserPayments(user_id: number, group_id?: number): Promise<(Payment & { expense: Expense })[]> {
     let query = `
-      SELECT p.*, e.* FROM payments p
+      SELECT
+        p.id as payment_id,
+        p.expense_split_id,
+        p.paid_by,
+        p.paid_to,
+        p.amount as payment_amount,
+        p.transfer_slip_url,
+        p.paid_at,
+        e.id as expense_id,
+        e.group_id,
+        e.created_by,
+        e.paid_by as expense_paid_by,
+        e.amount as expense_amount,
+        e.description,
+        e.location,
+        e.photo_url,
+        e.vendor_payment_slip_url,
+        e.split_type,
+        e.created_at
+      FROM payments p
       JOIN expense_splits es ON p.expense_split_id = es.id
       JOIN expenses e ON es.expense_id = e.id
       WHERE p.paid_by = ?
@@ -224,19 +266,19 @@ export class Database {
     const result = await this.db.prepare(query).bind(...bindings).all<any>();
 
     return (result.results || []).map(row => ({
-      id: row.id,
+      id: row.payment_id,
       expense_split_id: row.expense_split_id,
       paid_by: row.paid_by,
       paid_to: row.paid_to,
-      amount: row.amount,
+      amount: row.payment_amount,
       transfer_slip_url: row.transfer_slip_url,
       paid_at: row.paid_at,
       expense: {
         id: row.expense_id,
         group_id: row.group_id,
         created_by: row.created_by,
-        paid_by: row.paid_by,
-        amount: row.amount,
+        paid_by: row.expense_paid_by,
+        amount: row.expense_amount,
         description: row.description,
         location: row.location,
         photo_url: row.photo_url,
@@ -280,12 +322,33 @@ export class Database {
   async setReminderSettings(
     group_id: number,
     enabled: boolean,
-    reminder_time: string
+    reminder_time: string,
+    timezone_offset?: number
   ): Promise<void> {
+    if (timezone_offset !== undefined) {
+      await this.db.prepare(`
+        INSERT OR REPLACE INTO reminder_settings (group_id, enabled, reminder_time, timezone_offset)
+        VALUES (?, ?, ?, ?)
+      `).bind(group_id, enabled ? 1 : 0, reminder_time, timezone_offset).run();
+    } else {
+      await this.db.prepare(`
+        INSERT OR REPLACE INTO reminder_settings (group_id, enabled, reminder_time)
+        VALUES (?, ?, ?)
+      `).bind(group_id, enabled ? 1 : 0, reminder_time).run();
+    }
+  }
+
+  async setGroupTimezone(group_id: number, timezone_offset: number): Promise<void> {
     await this.db.prepare(`
-      INSERT OR REPLACE INTO reminder_settings (group_id, enabled, reminder_time)
-      VALUES (?, ?, ?)
-    `).bind(group_id, enabled ? 1 : 0, reminder_time).run();
+      INSERT INTO reminder_settings (group_id, timezone_offset)
+      VALUES (?, ?)
+      ON CONFLICT(group_id) DO UPDATE SET timezone_offset = ?
+    `).bind(group_id, timezone_offset, timezone_offset).run();
+  }
+
+  async getGroupTimezone(group_id: number): Promise<number> {
+    const settings = await this.getReminderSettings(group_id);
+    return settings?.timezone_offset ?? 0; // Default to UTC if not set
   }
 
   async updateLastReminderSent(group_id: number): Promise<void> {

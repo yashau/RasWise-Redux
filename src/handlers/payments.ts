@@ -1,5 +1,6 @@
 import { Context, InlineKeyboard } from 'grammy/web';
 import { Database } from '../db';
+import { formatUserName, formatAmount, saveSession, sendDMWithFallback } from '../utils';
 
 export async function handleMarkPaid(ctx: Context, db: Database) {
   const userId = ctx.from!.id;
@@ -22,7 +23,7 @@ export async function handleMarkPaid(ctx: Context, db: Database) {
 
   for (const split of unpaidSplits.slice(0, 10)) { // Show max 10 at a time
     const expense = split.expense;
-    const label = `#${expense.id} - ${split.amount_owed.toFixed(2)}${expense.description ? ` (${expense.description.substring(0, 20)})` : ''}`;
+    const label = `#${expense.id} - ${formatAmount(split.amount_owed)}${expense.description ? ` (${expense.description.substring(0, 20)})` : ''}`;
     keyboard.text(label, `markpaid:${split.id}`).row();
   }
 
@@ -69,10 +70,10 @@ export async function handleMarkPaidCallback(
 
   const paymentInfo = JSON.parse(payerPayment.payment_info);
   const payer = await db.getUser(expense.paid_by);
-  const payerName = payer?.first_name || payer?.username || `User ${expense.paid_by}`;
+  const payerName = formatUserName(payer, expense.paid_by);
 
   let message = `💸 Payment Details for Expense #${expense.id}:\n\n`;
-  message += `Amount to pay: ${split.amount_owed.toFixed(2)}\n`;
+  message += `Amount to pay: ${formatAmount(split.amount_owed)}\n`;
   if (expense.description) message += `For: ${expense.description}\n`;
   message += `\nPay to: ${payerName}\n`;
   message += `Bank Account: ${paymentInfo.account_number}\n\n`;
@@ -112,9 +113,7 @@ export async function handleConfirmPaid(
     step: 'photo'
   };
 
-  await kv.put(`payment_session:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600 // 10 minutes
-  });
+  await saveSession(kv, `payment_session:${userId}`, session);
 
   const keyboard = new InlineKeyboard()
     .text('Skip', `payment_skip:${splitId}`);
@@ -231,12 +230,12 @@ async function completePayment(
 
   // Notify the person who paid the expense
   const payingUser = await db.getUser(userId);
-  const payingUserName = payingUser?.first_name || payingUser?.username || `User ${userId}`;
+  const payingUserName = formatUserName(payingUser, userId);
 
   try {
     let notificationMsg = `✅ ${payingUserName} marked their payment as paid!\n\n` +
       `Expense #${expense.id}\n` +
-      `Amount: ${split.amount_owed.toFixed(2)}\n` +
+      `Amount: ${formatAmount(split.amount_owed)}\n` +
       (expense.description ? `Description: ${expense.description}\n` : '');
 
     if (transferSlipUrl) {
@@ -261,6 +260,144 @@ async function completePayment(
 export async function handleCancelPayment(ctx: Context) {
   await ctx.answerCallbackQuery({ text: 'Cancelled' });
   await ctx.editMessageText('Payment marking cancelled.');
+}
+
+export async function handleAdminMarkPaid(ctx: Context, db: Database) {
+  if (!ctx.chat || ctx.chat.type === 'private') {
+    return ctx.reply('This command can only be used in group chats.');
+  }
+
+  // Check if user is admin
+  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
+  if (member.status !== 'creator' && member.status !== 'administrator') {
+    return ctx.reply('❌ Only group admins can mark payments on behalf of users.');
+  }
+
+  // Check if replying to a message
+  if (!ctx.message?.reply_to_message) {
+    return ctx.reply(
+      '❌ Please reply to the user\'s message whose payment you want to mark as paid with /adminmarkpaid'
+    );
+  }
+
+  const targetUser = ctx.message.reply_to_message.from;
+  if (!targetUser) {
+    return ctx.reply('❌ Could not identify the user.');
+  }
+
+  const groupId = ctx.chat.id;
+  const targetUserId = targetUser.id;
+
+  // Get target user's unpaid splits in this group
+  const unpaidSplits = await db.getUserUnpaidSplits(targetUserId, groupId);
+
+  if (unpaidSplits.length === 0) {
+    const targetName = formatUserName({
+      telegram_id: targetUserId,
+      username: targetUser.username,
+      first_name: targetUser.first_name,
+      last_name: targetUser.last_name,
+      created_at: Date.now()
+    }, targetUserId);
+
+    return ctx.reply(`🎉 ${targetName} has no pending expenses to mark as paid!`);
+  }
+
+  // Create inline keyboard with expenses
+  const keyboard = new InlineKeyboard();
+
+  for (const split of unpaidSplits.slice(0, 10)) { // Show max 10 at a time
+    const expense = split.expense;
+    const label = `#${expense.id} - ${formatAmount(split.amount_owed)}${expense.description ? ` (${expense.description.substring(0, 20)})` : ''}`;
+    keyboard.text(label, `adminmarkpaid:${split.id}:${targetUserId}`).row();
+  }
+
+  let message = `💸 Select an expense to mark as paid for ${targetUser.first_name}:\n\n`;
+
+  if (unpaidSplits.length > 10) {
+    message += `Showing 10 of ${unpaidSplits.length} pending expenses.\n`;
+  }
+
+  await ctx.reply(message, { reply_markup: keyboard });
+}
+
+export async function handleAdminMarkPaidCallback(
+  ctx: Context,
+  db: Database,
+  splitId: number,
+  targetUserId: number
+) {
+  // Check if user is admin
+  if (!ctx.chat || ctx.chat.type === 'private') {
+    return ctx.answerCallbackQuery({ text: 'This can only be used in groups', show_alert: true });
+  }
+
+  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
+  if (member.status !== 'creator' && member.status !== 'administrator') {
+    return ctx.answerCallbackQuery({ text: 'Only admins can do this', show_alert: true });
+  }
+
+  // Get the split to verify it belongs to the target user
+  const splits = await db.getUserUnpaidSplits(targetUserId);
+  const split = splits.find(s => s.id === splitId);
+
+  if (!split) {
+    return ctx.answerCallbackQuery({
+      text: 'Expense not found or already paid',
+      show_alert: true
+    });
+  }
+
+  const expense = split.expense;
+  const targetUser = await db.getUser(targetUserId);
+  const targetName = formatUserName(targetUser, targetUserId);
+
+  // Mark as paid
+  await db.markSplitAsPaid(splitId);
+
+  // Record payment transaction (admin is marking it, but payment is from targetUser to expense.paid_by)
+  await db.recordPayment(
+    splitId,
+    targetUserId,
+    expense.paid_by,
+    split.amount_owed
+  );
+
+  await ctx.answerCallbackQuery();
+
+  // Notify the person who paid the expense
+  try {
+    const adminUser = await db.getUser(ctx.from!.id);
+    const adminName = formatUserName(adminUser, ctx.from!.id);
+
+    let notificationMsg = `✅ Admin ${adminName} marked ${targetName}'s payment as paid!\n\n` +
+      `Expense #${expense.id}\n` +
+      `Amount: ${formatAmount(split.amount_owed)}\n` +
+      (expense.description ? `Description: ${expense.description}\n` : '');
+
+    await ctx.api.sendMessage(expense.paid_by, notificationMsg);
+  } catch (error) {
+    // Payer hasn't started the bot, that's okay
+  }
+
+  // Notify the user whose payment was marked
+  try {
+    let userNotificationMsg = `✅ Admin marked your payment as complete!\n\n` +
+      `Expense #${expense.id}\n` +
+      `Amount: ${formatAmount(split.amount_owed)}\n` +
+      (expense.description ? `Description: ${expense.description}\n` : '');
+
+    await ctx.api.sendMessage(targetUserId, userNotificationMsg);
+  } catch (error) {
+    // User hasn't started the bot, that's okay
+  }
+
+  await ctx.reply(
+    `✅ Payment marked as complete for ${targetName}!\n\n` +
+    `Expense #${expense.id}\n` +
+    `Amount: ${formatAmount(split.amount_owed)}\n` +
+    (expense.description ? `Description: ${expense.description}` : '')
+  );
 }
 
 export async function handleViewPayments(ctx: Context, db: Database) {
@@ -296,7 +433,7 @@ export async function handleViewPayments(ctx: Context, db: Database) {
         if (!oweByPerson[split.user_id]) {
           const user = await db.getUser(split.user_id);
           oweByPerson[split.user_id] = {
-            name: user?.first_name || user?.username || `User ${split.user_id}`,
+            name: formatUserName(user, split.user_id),
             amount: 0,
             expenses: []
           };
@@ -308,25 +445,19 @@ export async function handleViewPayments(ctx: Context, db: Database) {
   }
 
   let message = '💰 Payments Owed to You:\n\n';
-  message += `Total Pending: ${totalOwed.toFixed(2)}\n`;
-  message += `Total Received: ${totalPaid.toFixed(2)}\n\n`;
+  message += `Total Pending: ${formatAmount(totalOwed)}\n`;
+  message += `Total Received: ${formatAmount(totalPaid)}\n\n`;
 
   if (Object.keys(oweByPerson).length > 0) {
     message += '📋 Breakdown:\n';
     for (const [personId, info] of Object.entries(oweByPerson)) {
       message += `\n${info.name}:\n`;
-      message += `  Amount: ${info.amount.toFixed(2)}\n`;
+      message += `  Amount: ${formatAmount(info.amount)}\n`;
       message += `  Expenses: ${info.expenses.map(id => `#${id}`).join(', ')}\n`;
     }
   } else {
     message += '✅ Everyone has paid you!';
   }
 
-  try {
-    await ctx.api.sendMessage(userId, message);
-  } catch (error) {
-    await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
-    );
-  }
+  await sendDMWithFallback(ctx, userId, message);
 }

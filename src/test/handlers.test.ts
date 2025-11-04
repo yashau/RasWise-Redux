@@ -313,6 +313,43 @@ describe('Handler Integration Tests', () => {
       settings = await db.getReminderSettings(-100);
       expect(settings?.enabled).toBe(0);
     });
+
+    it('should set and get group timezone', async () => {
+      await db.setGroupTimezone(-100, 5.5);
+
+      const offset = await db.getGroupTimezone(-100);
+      expect(offset).toBe(5.5);
+    });
+
+    it('should default to UTC (0) when no timezone is set', async () => {
+      const offset = await db.getGroupTimezone(-999);
+      expect(offset).toBe(0);
+    });
+
+    it('should handle negative timezone offsets', async () => {
+      await db.setGroupTimezone(-100, -5);
+
+      const offset = await db.getGroupTimezone(-100);
+      expect(offset).toBe(-5);
+    });
+
+    it('should update timezone when set multiple times', async () => {
+      await db.setGroupTimezone(-100, 8);
+      let offset = await db.getGroupTimezone(-100);
+      expect(offset).toBe(8);
+
+      await db.setGroupTimezone(-100, -3);
+      offset = await db.getGroupTimezone(-100);
+      expect(offset).toBe(-3);
+    });
+
+    it('should set timezone with reminder settings', async () => {
+      await db.setReminderSettings(-100, true, '10:00', 5.5);
+
+      const settings = await db.getReminderSettings(-100);
+      expect(settings?.timezone_offset).toBe(5.5);
+      expect(settings?.enabled).toBe(1);
+    });
   });
 
   describe('Edge cases', () => {

@@ -1,5 +1,6 @@
 import { Context } from 'grammy/web';
 import { Database } from '../db';
+import { formatDateTime, formatAmount, saveSession, getSession } from '../utils';
 
 export async function sendReminders(db: Database, botToken: string) {
   // Get all groups that have unpaid expenses
@@ -39,7 +40,7 @@ export async function sendReminders(db: Database, botToken: string) {
         const message =
           `🔔 Daily Reminder\n\n` +
           `You have ${unpaidSplits.length} pending expense${unpaidSplits.length > 1 ? 's' : ''}\n` +
-          `Total owed: ${totalOwed.toFixed(2)}\n\n` +
+          `Total owed: ${formatAmount(totalOwed)}\n\n` +
           `Use /myexpenses to see details\n` +
           `Use /markpaid to mark as paid`;
 
@@ -97,6 +98,7 @@ export async function handleReminderStatus(ctx: Context, db: Database) {
 
   const groupId = ctx.chat.id;
   const settings = await db.getReminderSettings(groupId);
+  const timezoneOffset = await db.getGroupTimezone(groupId);
 
   if (!settings || settings.enabled === 0) {
     await ctx.reply(
@@ -105,7 +107,7 @@ export async function handleReminderStatus(ctx: Context, db: Database) {
     );
   } else {
     const lastSent = settings.last_reminder_sent
-      ? new Date(settings.last_reminder_sent).toLocaleString()
+      ? formatDateTime(settings.last_reminder_sent, timezoneOffset)
       : 'Never';
 
     await ctx.reply(
@@ -114,4 +116,85 @@ export async function handleReminderStatus(ctx: Context, db: Database) {
       'Use /setreminder to disable'
     );
   }
+}
+
+export async function handleSetTimezone(ctx: Context, db: Database, kv: KVNamespace) {
+  if (!ctx.chat || ctx.chat.type === 'private') {
+    return ctx.reply('This command can only be used in group chats.');
+  }
+
+  // Check if user is admin
+  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
+  if (member.status !== 'creator' && member.status !== 'administrator') {
+    return ctx.reply('❌ Only group admins can set the timezone.');
+  }
+
+  const groupId = ctx.chat.id;
+  const userId = ctx.from!.id;
+
+  // Start session
+  const session = {
+    group_id: groupId,
+    step: 'timezone_offset'
+  };
+
+  const sessionKey = `timezone_session:${groupId}:${userId}`;
+  await saveSession(kv, sessionKey, session);
+
+  await ctx.reply(
+    '🌍 Set Group Timezone\n\n' +
+    'Please enter the timezone offset from UTC.\n\n' +
+    'Examples:\n' +
+    '+5 for Maldives\n' +
+    '-5 for Eastern US\n' +
+    '+0 for UTC\n' +
+    '+8 for Singapore\n\n' +
+    'Just send the number (like +5 or -5)'
+  );
+}
+
+export async function handleTimezoneInfo(ctx: Context, db: Database, kv: KVNamespace, session: any, groupId: number, userId: number) {
+  const text = ctx.message?.text;
+
+  if (!text) {
+    return ctx.reply('❌ Please send a valid timezone offset (e.g., +5.5 or -5)');
+  }
+
+  // Parse timezone offset
+  const offset = parseFloat(text);
+
+  if (isNaN(offset) || offset < -12 || offset > 14) {
+    return ctx.reply(
+      '❌ Invalid timezone offset. Please enter a number between -12 and +14\n\n' +
+      'Examples: +5.5, -5, +8, +0'
+    );
+  }
+
+  // Save timezone
+  await db.setGroupTimezone(groupId, offset);
+
+  // Clear session
+  const sessionKey = `timezone_session:${groupId}:${userId}`;
+  await kv.delete(sessionKey);
+
+  const sign = offset >= 0 ? '+' : '';
+  await ctx.reply(
+    `✅ Timezone set to UTC${sign}${offset}\n\n` +
+    'All dates in this group will now be displayed in this timezone.'
+  );
+}
+
+export async function handleViewTimezone(ctx: Context, db: Database) {
+  if (!ctx.chat || ctx.chat.type === 'private') {
+    return ctx.reply('This command can only be used in group chats.');
+  }
+
+  const groupId = ctx.chat.id;
+  const offset = await db.getGroupTimezone(groupId);
+
+  const sign = offset >= 0 ? '+' : '';
+  await ctx.reply(
+    `🌍 Current Group Timezone: UTC${sign}${offset}\n\n` +
+    'To change the timezone, use /settimezone (admin only)'
+  );
 }

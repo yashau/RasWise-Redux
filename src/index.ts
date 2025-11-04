@@ -8,7 +8,8 @@ import {
   handleSetPayment,
   handlePaymentInfo,
   handleViewPayment,
-  handleListUsers
+  handleListUsers,
+  handleUnregister
 } from './handlers/registration';
 
 import {
@@ -40,13 +41,18 @@ import {
   handleCancelPayment,
   handleViewPayments,
   handlePaymentPhoto,
-  handlePaymentSkip
+  handlePaymentSkip,
+  handleAdminMarkPaid,
+  handleAdminMarkPaidCallback
 } from './handlers/payments';
 
 import {
   sendReminders,
   handleSetReminder,
-  handleReminderStatus
+  handleReminderStatus,
+  handleSetTimezone,
+  handleTimezoneInfo,
+  handleViewTimezone
 } from './handlers/reminders';
 
 export default {
@@ -71,6 +77,7 @@ export default {
           'I help you split expenses with your friends.\n\n' +
           'Available commands:\n' +
           '/register - Register a user in a group\n' +
+          '/unregister - Unregister a user (admin)\n' +
           '/listusers - List registered users\n' +
           '/setpayment - Set your payment details\n' +
           '/viewpayment - View your payment details\n' +
@@ -79,8 +86,11 @@ export default {
           '/summary - View your expense summary\n' +
           '/history - View group expense history\n' +
           '/markpaid - Mark an expense as paid\n' +
+          '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money\n' +
           '/setreminder - Toggle daily reminders\n' +
+          '/settimezone - Set group timezone (admin)\n' +
+          '/viewtimezone - View current timezone\n' +
           '/help - Show this help message'
         );
       });
@@ -100,15 +110,20 @@ export default {
           '/history - See group expense history (DM)\n\n' +
           '💸 Payments:\n' +
           '/markpaid - Mark an expense as paid\n' +
+          '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money (DM)\n\n' +
           '🔔 Reminders:\n' +
           '/setreminder - Enable/disable daily reminders\n\n' +
+          '🌍 Timezone:\n' +
+          '/settimezone - Set group timezone (admin only)\n' +
+          '/viewtimezone - View current timezone\n\n' +
           'Group commands work in group chats.\n' +
           'Personal info is sent via DM for privacy!'
         );
       });
 
       bot.command('register', (ctx) => handleRegister(ctx, db));
+      bot.command('unregister', (ctx) => handleUnregister(ctx, db));
       bot.command('listusers', (ctx) => handleListUsers(ctx, db));
       bot.command('setpayment', (ctx) => handleSetPayment(ctx, db, env.KV));
       bot.command('viewpayment', (ctx) => handleViewPayment(ctx, db));
@@ -119,10 +134,13 @@ export default {
       bot.command('history', (ctx) => handleHistory(ctx, db));
 
       bot.command('markpaid', (ctx) => handleMarkPaid(ctx, db));
+      bot.command('adminmarkpaid', (ctx) => handleAdminMarkPaid(ctx, db));
       bot.command('owed', (ctx) => handleViewPayments(ctx, db));
 
       bot.command('setreminder', (ctx) => handleSetReminder(ctx, db));
       bot.command('reminderstatus', (ctx) => handleReminderStatus(ctx, db));
+      bot.command('settimezone', (ctx) => handleSetTimezone(ctx, db, env.KV));
+      bot.command('viewtimezone', (ctx) => handleViewTimezone(ctx, db));
 
       // Callback query handlers
       bot.callbackQuery(/^expense_user:(.+)$/, async (ctx) => {
@@ -154,6 +172,12 @@ export default {
         await handleMarkPaidCallback(ctx, db, splitId);
       });
 
+      bot.callbackQuery(/^adminmarkpaid:(\d+):(\d+)$/, async (ctx) => {
+        const splitId = parseInt(ctx.match![1]);
+        const targetUserId = parseInt(ctx.match![2]);
+        await handleAdminMarkPaidCallback(ctx, db, splitId, targetUserId);
+      });
+
       bot.callbackQuery(/^confirmpaid:(.+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
         await handleConfirmPaid(ctx, db, env.KV, splitId);
@@ -170,6 +194,16 @@ export default {
       bot.on('message:text', async (ctx) => {
         const userId = ctx.from!.id;
         const chatId = ctx.chat!.id;
+
+        // Check for timezone session
+        const timezoneSessionKey = `timezone_session:${chatId}:${userId}`;
+        const timezoneSessionData = await env.KV.get(timezoneSessionKey);
+
+        if (timezoneSessionData) {
+          const session = JSON.parse(timezoneSessionData);
+          await handleTimezoneInfo(ctx, db, env.KV, session, chatId, userId);
+          return;
+        }
 
         // Check for payment session
         const paymentSessionKey = `payment_session:${userId}`;

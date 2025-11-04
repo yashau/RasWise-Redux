@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS reminder_settings (
     group_id INTEGER PRIMARY KEY,
     enabled INTEGER DEFAULT 1,
     reminder_time TEXT DEFAULT '10:00', -- HH:MM format
-    last_reminder_sent INTEGER
+    last_reminder_sent INTEGER,
+    timezone_offset REAL DEFAULT 0 -- Hours offset from UTC (e.g., +5.5 for IST, -5 for EST)
 );
 
 -- Create indexes for better query performance

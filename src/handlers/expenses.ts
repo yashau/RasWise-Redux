@@ -1,6 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy/web';
 import { Database } from '../db';
 import type { Env, ExpenseSession, User } from '../types';
+import { formatUserName, formatAmount, saveSession, getSession } from '../utils';
 
 export async function handleAddExpense(ctx: Context, db: Database, kv: KVNamespace) {
   if (!ctx.chat || ctx.chat.type === 'private') {
@@ -24,9 +25,7 @@ export async function handleAddExpense(ctx: Context, db: Database, kv: KVNamespa
     step: 'amount'
   };
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600 // 10 minutes
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   await ctx.reply(
     '💰 Let\'s add a new expense!\n\n' +
@@ -51,9 +50,7 @@ export async function handleExpenseAmount(
   session.amount = amount;
   session.step = 'description';
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:description');
 
@@ -75,9 +72,7 @@ export async function handleExpenseDescription(
   session.description = ctx.message?.text;
   session.step = 'location';
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:location');
 
@@ -98,9 +93,7 @@ export async function handleExpenseLocation(
   session.location = ctx.message?.text;
   session.step = 'photo';
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:photo');
 
@@ -146,9 +139,7 @@ export async function handleExpensePhoto(
 
   session.step = 'vendor_slip';
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:vendor_slip');
 
@@ -195,9 +186,7 @@ export async function handleVendorSlipPhoto(
 
   session.step = 'users';
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   // Get registered users
   const users = await db.getGroupUsers(groupId);
@@ -211,7 +200,7 @@ export async function handleVendorSlipPhoto(
 
   // Add user selection buttons (2 per row)
   users.forEach((user, idx) => {
-    const name = user.first_name || user.username || `User ${user.telegram_id}`;
+    const name = formatUserName(user);
     keyboard.text(`✓ ${name}`, `expense_user:${user.telegram_id}`);
     if (idx % 2 === 1) keyboard.row();
   });
@@ -262,14 +251,14 @@ export async function handleUserSelection(
     }
   }
 
-  await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+  await saveSession(kv, sessionKey, session);
 
   // Update keyboard
   const users = await db.getGroupUsers(groupId);
   const keyboard = new InlineKeyboard();
 
   users.forEach((user, idx) => {
-    const name = user.first_name || user.username || `User ${user.telegram_id}`;
+    const name = formatUserName(user);
     const isSelected = session.selected_users!.includes(user.telegram_id);
     keyboard.text(
       `${isSelected ? '✓' : '○'} ${name}`,
@@ -312,7 +301,7 @@ export async function handleUsersDone(
   }
 
   session.step = 'paid_by';
-  await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+  await saveSession(kv, sessionKey, session);
 
   // Get registered users to show who can be selected as payer
   const users = await db.getGroupUsers(groupId);
@@ -320,7 +309,7 @@ export async function handleUsersDone(
 
   // Add buttons for each user
   users.forEach((user, idx) => {
-    const name = user.first_name || user.username || `User ${user.telegram_id}`;
+    const name = formatUserName(user);
     const isCurrentUser = user.telegram_id === userId;
     keyboard.text(
       isCurrentUser ? `${name} (You)` : name,
@@ -355,14 +344,14 @@ export async function handlePaidBy(
   const session: ExpenseSession = JSON.parse(sessionData);
   session.paid_by = paidById;
   session.step = 'split_type';
-  await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+  await saveSession(kv, sessionKey, session);
 
   const keyboard = new InlineKeyboard()
     .text('Equal Split', 'expense_split:equal').row()
     .text('Custom Split', 'expense_split:custom');
 
   const payer = await db.getUser(paidById);
-  const payerName = payer?.first_name || payer?.username || `User ${paidById}`;
+  const payerName = formatUserName(payer, paidById);
 
   await ctx.answerCallbackQuery();
   await ctx.reply(
@@ -400,7 +389,7 @@ export async function handleSplitType(
     // Ask for custom splits
     session.step = 'custom_splits';
     session.custom_splits = {};
-    await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+    await saveSession(kv, sessionKey, session);
 
     const users = await db.getGroupUsers(groupId);
     // Filter out the payer from custom split entry
@@ -410,7 +399,7 @@ export async function handleSplitType(
 
     let message = 'Please enter the amount for each person:\n\n';
     selectedUsers.forEach((user, idx) => {
-      const name = user.first_name || user.username || `User ${user.telegram_id}`;
+      const name = formatUserName(user);
       message += `${idx + 1}. ${name} (ID: ${user.telegram_id})\n`;
     });
     message += '\nFormat: user_id amount\nExample: 123456 50.00';
@@ -452,9 +441,7 @@ export async function handleCustomSplit(
 
   session.custom_splits[targetUserId] = amount;
 
-  await kv.put(`expense_session:${groupId}:${userId}`, JSON.stringify(session), {
-    expirationTtl: 600
-  });
+  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
 
   const users = await db.getGroupUsers(groupId);
   const remaining = session.selected_users!.filter(
@@ -540,7 +527,7 @@ async function createExpense(
   // Build confirmation message
   const users = await db.getGroupUsers(groupId);
   const payer = users.find(u => u.telegram_id === session.paid_by);
-  const payerName = payer?.first_name || payer?.username || `User ${session.paid_by}`;
+  const payerName = formatUserName(payer, session.paid_by);
 
   let message = '✅ Expense added successfully!\n\n';
   message += `💰 Total Amount: ${session.amount}\n`;
@@ -552,7 +539,7 @@ async function createExpense(
   for (const [uid, amount] of Object.entries(splitAmounts)) {
     const user = users.find(u => u.telegram_id === parseInt(uid));
     const name = user?.first_name || user?.username || `User ${uid}`;
-    message += `  • ${name}: ${amount.toFixed(2)}\n`;
+    message += `  • ${name}: ${formatAmount(amount)}\n`;
   }
 
   message += `\nExpense ID: #${expenseId}`;
@@ -591,13 +578,13 @@ export async function handleSkip(
 
   if (field === 'description') {
     session.step = 'location';
-    await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+    await saveSession(kv, sessionKey, session);
 
     const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:location');
     await ctx.reply('Step 3: Where was this expense? (location)', { reply_markup: keyboard });
   } else if (field === 'location') {
     session.step = 'photo';
-    await kv.put(sessionKey, JSON.stringify(session), { expirationTtl: 600 });
+    await saveSession(kv, sessionKey, session);
 
     const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:photo');
     await ctx.reply('Step 4: Send a photo of the bill/receipt (optional)', { reply_markup: keyboard });

@@ -5,12 +5,14 @@ A Telegram bot for splitting expenses among group members, built on Cloudflare W
 ## Features
 
 - **User Registration**: Register users in group chats to track their expenses
+- **Admin Controls**: Unregister users and mark payments on behalf of others (admin only)
 - **Payment Details**: Users can set and update their bank account details
 - **Expense Tracking**: Add expenses with amount, description, location, and bill photos
 - **Vendor Payment Slips**: Upload proof of payment to vendors/restaurants
 - **Flexible Splitting**: Split bills equally or set custom amounts per person
 - **Payment Tracking**: Track who owes what and mark expenses as paid with optional transfer slips
 - **Comprehensive History**: View expense history with all attachments and payment records
+- **Timezone Support**: Configure group-specific timezones for accurate date/time display
 - **Daily Reminders**: Automatic daily reminders for pending expenses
 - **Privacy First**: All personal financial information sent via DM
 
@@ -22,7 +24,7 @@ A Telegram bot for splitting expenses among group members, built on Cloudflare W
 - **Storage**: Cloudflare R2 (for bill photos, vendor slips, transfer receipts)
 - **Session Management**: Cloudflare KV
 - **Language**: TypeScript with strict typing
-- **Testing**: Vitest + Miniflare (45 tests, 97.22% coverage)
+- **Testing**: Vitest + Miniflare (92 tests, 98.44% coverage)
 
 ## Complete Bot Workflow
 
@@ -58,7 +60,7 @@ Step 4: Bill Photo (Optional)
 ├─ Upload a photo of the receipt/bill
 ├─ OR click "Skip"
 │
-Step 5: Vendor Payment Slip (Optional) ⭐ NEW
+Step 5: Vendor Payment Slip (Optional)
 ├─ Upload proof that you paid the vendor/restaurant
 ├─ (e.g., bank transfer receipt, payment confirmation)
 ├─ OR click "Skip"
@@ -119,12 +121,12 @@ Location: Pizza Place
 📷 Bill photo attached
 🧾 Vendor payment slip attached
 Fronted by: Alice
-Date: 1/15/2025
+Date: 2025/01/15
 
 Total pending: 100.00
 ```
 
-**Section B: Payment History** ⭐ NEW
+**Section B: Payment History**
 ```
 ━━━━━━━━━━━━━━━━
 
@@ -136,7 +138,7 @@ Paid to: John
 For: Coffee supplies
 Location: Starbucks
 📷 Transfer slip attached
-Date: 1/14/2025
+Date: 2025/01/14
 
 Total paid: 50.00
 ```
@@ -184,13 +186,13 @@ Displays recent expenses in your DM:
 💰 #123 - 300.00
    Team lunch
    📷 Bill | 🧾 Vendor slip
-   By: Alice | 1/15/2025
+   By: Alice | 2025/01/15
    Split: equal among 3 user(s)
    Status: 2/2 paid
 
 💰 #122 - 150.00
    Office supplies
-   By: Bob | 1/14/2025
+   By: Bob | 2025/01/14
    Split: custom among 2 user(s)
    Status: 1/2 paid
 ```
@@ -357,6 +359,10 @@ npm run deploy
 - `/start` - Get started and see all commands
 - `/help` - Show help message with all commands
 - `/register` - Reply to a user's message to register them in the group
+- `/unregister` - Unregister a user from the group (admin only)
+  - `/unregister` (reply to user's message)
+  - `/unregister @username`
+  - `/unregister username`
 - `/listusers` - List all registered users in the group
 - `/setpayment` - Set or update your bank account number
 - `/viewpayment` - View your saved payment details
@@ -369,11 +375,14 @@ npm run deploy
 
 ### Payments
 - `/markpaid` - Mark an expense as paid with optional transfer slip
+- `/adminmarkpaid` - Mark payment on behalf of another user (admin only)
 - `/owed` - See who owes you money (sent via DM)
 
-### Reminders
+### Reminders & Settings
 - `/setreminder` - Toggle daily reminders on/off for the group
 - `/reminderstatus` - Check if reminders are enabled
+- `/settimezone` - Set group timezone for accurate date/time display (admin only)
+- `/viewtimezone` - View current group timezone
 
 ## Key Features Explained
 
@@ -383,7 +392,7 @@ npm run deploy
    - Photo of the receipt from vendor
    - Helps verify expense amount and items
 
-2. **Vendor Payment Slip** (Step 5 of expense creation) ⭐ NEW
+2. **Vendor Payment Slip** (Step 5 of expense creation)
    - Proof that the person who fronted actually paid the vendor
    - E.g., bank transfer confirmation to restaurant
    - Shows in expense history with 🧾 icon
@@ -392,6 +401,37 @@ npm run deploy
    - Proof that you paid the person who fronted
    - Shows in your personal payment history with 📷 icon
    - Recipient gets notification with attachment
+
+### 👮 Admin Controls
+
+Group admins (creators and administrators) have special permissions:
+
+**Admin-Only Commands:**
+- `/unregister` - Remove users from the group (only if they have no pending expenses)
+  - Works with reply-to-message, @username, or plain username
+  - Can unregister users even if they've left the group
+- `/adminmarkpaid` - Mark payments as paid on behalf of other users
+  - Requires reply-to-message pattern
+- `/settimezone` - Set the group's timezone for accurate date/time display
+
+**How to Use:**
+- `/adminmarkpaid` uses reply-to-message pattern
+- `/unregister` supports three formats:
+  - Reply to the user's message and use `/unregister`
+  - Use `/unregister @username`
+  - Use `/unregister username`
+- The bot will verify your admin status before executing
+
+**Unregister Restrictions:**
+- Cannot unregister users with pending unpaid expenses
+- Bot will show the exact amount and number of pending expenses
+- User must pay all debts before they can be unregistered
+
+**Admin Mark Paid Flow:**
+1. Reply to target user's message with `/adminmarkpaid`
+2. Bot shows list of that user's pending expenses
+3. Select the expense to mark as paid
+4. Bot marks it paid and notifies both the payer and the user
 
 ### 🔒 Privacy Protection
 
@@ -405,6 +445,7 @@ Only group-level actions happen in the group chat:
 - User registration
 - Adding expenses
 - Group settings
+- Admin actions
 
 ### 💡 Smart Split Logic
 
@@ -458,10 +499,42 @@ npm run typecheck
 ```
 
 ### Test Coverage
-- **45 tests** covering all core functionality
-- **97.22% overall coverage**
+- **92 tests** covering all core functionality including:
+  - User registration and unregistration
+  - Payment details management
+  - Expense creation with equal/custom splits
+  - Payment tracking and history
+  - Admin controls (unregister, mark paid on behalf)
+  - Reminder settings and timezone management
+  - Date formatting with timezone offsets
+  - Session management
+- **98.44% overall coverage** (100% on db.ts and utils.ts)
 - Tests use actual production schema.sql
 - Miniflare provides realistic Cloudflare Workers environment
+
+### Test Breakdown
+- `src/test/utils.test.ts` - 32 tests for utility functions
+  - Date/datetime formatting with timezone support
+  - User name formatting
+  - Amount formatting
+  - DM fallback handling
+  - Session save/get operations
+- `src/test/db.test.ts` - 39 tests for database operations
+  - User CRUD operations
+  - Payment details management
+  - Group registration
+  - Expense and split creation
+  - Payment recording and history
+  - Summary calculations
+  - Reminder settings
+  - Timezone operations
+  - Unregister with validation
+- `src/test/handlers.test.ts` - 21 integration tests
+  - End-to-end registration flows
+  - Expense creation and payment workflows
+  - Summary and history generation
+  - Reminder system functionality
+  - Edge case handling
 
 ### Generate TypeScript Types
 
@@ -478,7 +551,7 @@ The bot uses the following tables:
 - **`group_users`** - User-group registration mapping
 - **`expenses`** - Expense records with amount, description, location, photos
   - `photo_url` - Bill/receipt photo
-  - `vendor_payment_slip_url` - Proof of payment to vendor ⭐ NEW
+  - `vendor_payment_slip_url` - Proof of payment to vendor
 - **`expense_splits`** - Individual split amounts per user
 - **`payments`** - Payment transaction history
   - `transfer_slip_url` - Proof of payment between users
@@ -599,6 +672,7 @@ I help you split expenses with your friends.
 
 Available commands:
 /register - Register a user in a group
+/unregister - Unregister a user (admin)
 /listusers - List registered users
 /setpayment - Set your payment details
 /viewpayment - View your payment details
@@ -607,8 +681,11 @@ Available commands:
 /summary - View your expense summary
 /history - View group expense history
 /markpaid - Mark an expense as paid
+/adminmarkpaid - Mark payment on behalf of user (admin)
 /owed - See who owes you money
 /setreminder - Toggle daily reminders
+/settimezone - Set group timezone (admin)
+/viewtimezone - View current timezone
 /help - Show this help message
 ```
 
@@ -757,7 +834,7 @@ Description: Team lunch at Pizza Place
 📷 Bill photo attached
 🧾 Vendor payment slip attached
 Fronted by: Alice
-Date: 1/15/2025
+Date: 2025/01/15
 
 Total pending: 150.00
 
@@ -778,7 +855,7 @@ Total amount: 50.00
 Amount you owe: 25.00
 Description: Coffee supplies
 Fronted by: Dave
-Date: 1/16/2025
+Date: 2025/01/16
 
 Total pending: 25.00
 
@@ -791,7 +868,7 @@ Amount paid: 150.00
 Paid to: Alice
 For: Team lunch at Pizza Place
 📷 Transfer slip attached
-Date: 1/15/2025
+Date: 2025/01/15
 
 Total paid: 150.00
 
@@ -935,20 +1012,20 @@ Charlie:
 
 💰 #125 - 80.00
    Uber ride home
-   By: Charlie | 1/17/2025
+   By: Charlie | 2025/01/17
    Split: equal among 4 user(s)
    Status: 3/3 paid
 
 💰 #124 - 50.00
    Coffee supplies
-   By: Dave | 1/16/2025
+   By: Dave | 2025/01/16
    Split: equal among 2 user(s)
    Status: 2/2 paid
 
 💰 #123 - 300.00
    Team lunch at Pizza Place
    📷 Bill | 🧾 Vendor slip
-   By: Alice | 1/15/2025
+   By: Alice | 2025/01/15
    Split: equal among 3 user(s)
    Status: 2/2 paid
 
@@ -997,8 +1074,138 @@ Use /setreminder again to enable.
 
 **Bot** (at 10:00 AM UTC, if reminders enabled):
 ```
-🔔 Reminder: There are pending expenses to be paid.
-Use /myexpenses to view your pending expenses.
+🔔 Daily Reminder
+
+You have 2 pending expenses
+Total owed: 175.00
+
+Use /myexpenses to see details
+Use /markpaid to mark as paid
+```
+
+### Unregistering a User (Admin Only)
+
+**Method 1: Reply to message**
+
+**Admin** (replying to Bob's message): `/unregister`
+
+**Bot** (if user has pending expenses):
+```
+❌ Cannot unregister user. They have 2 unpaid expense(s) totaling 150.00.
+```
+
+**Admin** (after Bob pays all expenses, replies to Bob): `/unregister`
+
+**Bot**:
+```
+✅ Bob has been unregistered from this group.
+```
+
+**Method 2: Using @username**
+
+**Admin**: `/unregister @bob`
+
+**Bot**:
+```
+✅ Bob has been unregistered from this group.
+```
+
+**Method 3: Using plain username (works even if user left the group)**
+
+**Admin**: `/unregister bob`
+
+**Bot**:
+```
+✅ Bob has been unregistered from this group.
+```
+
+**Admin**: `/unregister @alice`
+
+**Bot** (if username not found):
+```
+❌ User @alice is not registered in this group.
+```
+
+### Setting Group Timezone (Admin Only)
+
+**Admin**: `/settimezone`
+
+**Bot**:
+```
+🌍 Set Group Timezone
+
+Please enter the timezone offset from UTC.
+
+Examples:
++5 for Maldives
+-5 for Eastern US
++0 for UTC
++8 for Singapore
+
+Just send the number (like +5 or -5)
+```
+
+**Admin**: `+5`
+
+**Bot**:
+```
+✅ Timezone set to UTC+5
+
+All dates in this group will now be displayed in this timezone.
+```
+
+### Viewing Group Timezone
+
+**User**: `/viewtimezone`
+
+**Bot**:
+```
+🌍 Current Group Timezone: UTC+5
+
+To change the timezone, use /settimezone (admin only)
+```
+
+### Admin Marking Payment on Behalf of User
+
+**Admin** (replying to Bob's message): `/adminmarkpaid`
+
+**Bot**:
+```
+💸 Select an expense to mark as paid for Bob:
+
+[#123 - 150.00 (Team lunch at Piz...)]
+[#124 - 25.00 (Coffee supplies)]
+
+Showing 2 of 2 pending expenses.
+```
+
+**Admin**: _clicks on expense #123_
+
+**Bot** (in group):
+```
+✅ Payment marked as complete for Bob!
+
+Expense #123
+Amount: 150.00
+Description: Team lunch at Pizza Place
+```
+
+**Bot** (DM to Alice, who fronted the money):
+```
+✅ Admin Charlie marked Bob's payment as paid!
+
+Expense #123
+Amount: 150.00
+Description: Team lunch at Pizza Place
+```
+
+**Bot** (DM to Bob):
+```
+✅ Admin marked your payment as complete!
+
+Expense #123
+Amount: 150.00
+Description: Team lunch at Pizza Place
 ```
 
 ### Error Messages
