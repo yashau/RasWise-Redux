@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS payments (
     paid_by INTEGER NOT NULL,
     paid_to INTEGER NOT NULL,
     amount REAL NOT NULL,
+    transfer_slip_url TEXT, -- R2 bucket URL for bank transfer slip photo
     paid_at INTEGER NOT NULL,
     FOREIGN KEY (expense_split_id) REFERENCES expense_splits(id),
     FOREIGN KEY (paid_by) REFERENCES users(telegram_id),

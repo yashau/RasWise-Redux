@@ -37,7 +37,9 @@ import {
   handleMarkPaidCallback,
   handleConfirmPaid,
   handleCancelPayment,
-  handleViewPayments
+  handleViewPayments,
+  handlePaymentPhoto,
+  handlePaymentSkip
 } from './handlers/payments';
 
 import {
@@ -153,7 +155,12 @@ export default {
 
       bot.callbackQuery(/^confirmpaid:(.+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
-        await handleConfirmPaid(ctx, db, splitId);
+        await handleConfirmPaid(ctx, db, env.KV, splitId);
+      });
+
+      bot.callbackQuery(/^payment_skip:(.+)$/, async (ctx) => {
+        const splitId = parseInt(ctx.match![1]);
+        await handlePaymentSkip(ctx, db, env.KV, splitId);
       });
 
       bot.callbackQuery('cancel_payment', (ctx) => handleCancelPayment(ctx));
@@ -192,10 +199,17 @@ export default {
         }
       });
 
-      // Photo handler for expense photos
+      // Photo handler for expense photos and payment slips
       bot.on('message:photo', async (ctx) => {
         const userId = ctx.from!.id;
         const chatId = ctx.chat!.id;
+
+        // Check for payment session first
+        const paymentSessionData = await env.KV.get(`payment_session:${userId}`);
+        if (paymentSessionData) {
+          await handlePaymentPhoto(ctx, db, env.KV, env.BILLS_BUCKET, userId);
+          return;
+        }
 
         const expenseSessionKey = `expense_session:${chatId}:${userId}`;
         const expenseSessionData = await env.KV.get(expenseSessionKey);

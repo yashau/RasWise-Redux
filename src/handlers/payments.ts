@@ -90,6 +90,7 @@ export async function handleMarkPaidCallback(
 export async function handleConfirmPaid(
   ctx: Context,
   db: Database,
+  kv: KVNamespace,
   splitId: number
 ) {
   const userId = ctx.from!.id;
@@ -105,42 +106,155 @@ export async function handleConfirmPaid(
     });
   }
 
+  // Create payment session
+  const session = {
+    split_id: splitId,
+    step: 'photo'
+  };
+
+  await kv.put(`payment_session:${userId}`, JSON.stringify(session), {
+    expirationTtl: 600 // 10 minutes
+  });
+
+  const keyboard = new InlineKeyboard()
+    .text('Skip', `payment_skip:${splitId}`);
+
+  await ctx.answerCallbackQuery();
+  await ctx.reply(
+    '📷 Would you like to upload a bank transfer slip as proof of payment?\n\n' +
+    'You can send a photo now, or click Skip to mark as paid without a receipt.',
+    { reply_markup: keyboard }
+  );
+}
+
+export async function handlePaymentPhoto(
+  ctx: Context,
+  db: Database,
+  kv: KVNamespace,
+  r2: R2Bucket,
+  userId: number
+) {
+  const sessionData = await kv.get(`payment_session:${userId}`);
+
+  if (!sessionData) {
+    return; // No active payment session
+  }
+
+  const session = JSON.parse(sessionData);
+  const splitId = session.split_id;
+
+  // Get split info
+  const splits = await db.getUserUnpaidSplits(userId);
+  const split = splits.find(s => s.id === splitId);
+
+  if (!split) {
+    await kv.delete(`payment_session:${userId}`);
+    return ctx.reply('Expense not found or already paid.');
+  }
+
+  const expense = split.expense;
+  const photo = ctx.message?.photo;
+
+  let transferSlipUrl: string | undefined;
+
+  if (photo && photo.length > 0) {
+    // Get the largest photo
+    const largestPhoto = photo[photo.length - 1];
+    const fileId = largestPhoto.file_id;
+
+    // Get file from Telegram
+    const file = await ctx.api.getFile(fileId);
+    const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
+
+    // Download and upload to R2
+    const response = await fetch(fileUrl);
+    const blob = await response.arrayBuffer();
+
+    const key = `transfer_slips/${userId}/${Date.now()}_${fileId}.jpg`;
+    await r2.put(key, blob, {
+      httpMetadata: {
+        contentType: 'image/jpeg'
+      }
+    });
+
+    transferSlipUrl = key;
+  }
+
+  // Complete the payment
+  await completePayment(ctx, db, kv, splitId, userId, transferSlipUrl);
+}
+
+export async function handlePaymentSkip(
+  ctx: Context,
+  db: Database,
+  kv: KVNamespace,
+  splitId: number
+) {
+  const userId = ctx.from!.id;
+  await ctx.answerCallbackQuery();
+  await completePayment(ctx, db, kv, splitId, userId);
+}
+
+async function completePayment(
+  ctx: Context,
+  db: Database,
+  kv: KVNamespace,
+  splitId: number,
+  userId: number,
+  transferSlipUrl?: string
+) {
+  // Verify ownership
+  const splits = await db.getUserUnpaidSplits(userId);
+  const split = splits.find(s => s.id === splitId);
+
+  if (!split) {
+    await kv.delete(`payment_session:${userId}`);
+    return ctx.reply('Expense not found or already paid.');
+  }
+
   const expense = split.expense;
 
   // Mark as paid
   await db.markSplitAsPaid(splitId);
 
-  // Record payment transaction (paid_by is who receives the money)
+  // Record payment transaction with optional transfer slip
   await db.recordPayment(
     splitId,
     userId,
     expense.paid_by,
-    split.amount_owed
+    split.amount_owed,
+    transferSlipUrl
   );
+
+  // Clear session
+  await kv.delete(`payment_session:${userId}`);
 
   // Notify the person who paid the expense
   const payingUser = await db.getUser(userId);
   const payingUserName = payingUser?.first_name || payingUser?.username || `User ${userId}`;
 
   try {
-    await ctx.api.sendMessage(
-      expense.paid_by,
-      `✅ ${payingUserName} marked their payment as paid!\n\n` +
+    let notificationMsg = `✅ ${payingUserName} marked their payment as paid!\n\n` +
       `Expense #${expense.id}\n` +
       `Amount: ${split.amount_owed.toFixed(2)}\n` +
-      (expense.description ? `Description: ${expense.description}\n` : '')
-    );
+      (expense.description ? `Description: ${expense.description}\n` : '');
+
+    if (transferSlipUrl) {
+      notificationMsg += '\n📷 Transfer slip attached';
+    }
+
+    await ctx.api.sendMessage(expense.paid_by, notificationMsg);
   } catch (error) {
     // Payer hasn't started the bot, that's okay
   }
 
-  await ctx.answerCallbackQuery({ text: 'Marked as paid!' });
-  await ctx.editMessageText(
+  await ctx.reply(
     `✅ Payment marked as complete!\n\n` +
     `Expense #${expense.id}\n` +
     `Amount: ${split.amount_owed.toFixed(2)}\n` +
     (expense.description ? `Description: ${expense.description}\n` : '') +
-    `\nThe person who paid has been notified.`
+    (transferSlipUrl ? '\n📷 Transfer slip uploaded' : '') +
+    `\n\nThe person who paid has been notified.`
   );
 }
 

@@ -173,7 +173,7 @@ describe('Handler Integration Tests', () => {
 
     it('should mark expense as paid', async () => {
       await db.markSplitAsPaid(splitId);
-      await db.recordPayment(splitId, 222, 111, 50);
+      await db.recordPayment(splitId, 222, 111, 50, undefined);
 
       const unpaidSplits = await db.getUserUnpaidSplits(222, -100);
       expect(unpaidSplits).toHaveLength(0);

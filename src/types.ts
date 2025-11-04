@@ -60,6 +60,7 @@ export interface Payment {
   paid_by: number;
   paid_to: number;
   amount: number;
+  transfer_slip_url?: string;
   paid_at: number;
 }
 
@@ -86,4 +87,9 @@ export interface ExpenseSession {
 export interface PaymentDetailSession {
   step: 'type' | 'info';
   payment_type?: string;
+}
+
+export interface MarkPaidSession {
+  split_id: number;
+  step: 'confirm' | 'photo';
 }

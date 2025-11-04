@@ -194,12 +194,13 @@ export class Database {
     expense_split_id: number,
     paid_by: number,
     paid_to: number,
-    amount: number
+    amount: number,
+    transfer_slip_url?: string
   ): Promise<void> {
     await this.db.prepare(`
-      INSERT INTO payments (expense_split_id, paid_by, paid_to, amount, paid_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(expense_split_id, paid_by, paid_to, amount, Date.now()).run();
+      INSERT INTO payments (expense_split_id, paid_by, paid_to, amount, transfer_slip_url, paid_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(expense_split_id, paid_by, paid_to, amount, transfer_slip_url || null, Date.now()).run();
   }
 
   // Summary operations
