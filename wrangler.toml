@@ -1,0 +1,23 @@
+name = "raswise-redux"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# D1 Database for storing users, expenses, and splits
+[[d1_databases]]
+binding = "DB"
+database_name = "raswise_db"
+database_id = "" # Will be filled after creating the database
+
+# KV for storing session data
+[[kv_namespaces]]
+binding = "KV"
+id = "" # Will be filled after creating the KV namespace
+
+# R2 for storing bill photos
+[[r2_buckets]]
+binding = "BILLS_BUCKET"
+bucket_name = "raswise-bills"
+
+[vars]
+# BOT_TOKEN will be set as a secret using: wrangler secret put BOT_TOKEN
+WEBHOOK_DOMAIN = "" # Set this to your worker domain after deployment
