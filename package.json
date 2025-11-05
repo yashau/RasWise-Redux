@@ -26,11 +26,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250117.0",
-    "@types/node": "^22.10.5",
+    "@types/node": "^24.10.0",
     "@vitest/coverage-v8": "^4.0.6",
-    "miniflare": "^3.20241106.2",
+    "miniflare": "^4.20251011.2",
     "typescript": "^5.7.2",
     "vitest": "^4.0.6",
-    "wrangler": "^3.100.0"
+    "wrangler": "^4.45.4"
   }
 }

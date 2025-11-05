@@ -6,12 +6,12 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "raswise_db"
-database_id = "" # Will be filled after creating the database
+# database_id = "" # Uncomment and fill after creating the database with: wrangler d1 create raswise_db
 
 # KV for storing session data
 [[kv_namespaces]]
 binding = "KV"
-id = "" # Will be filled after creating the KV namespace
+# id = "" # Uncomment and fill after creating the KV namespace with: wrangler kv namespace create KV
 
 # R2 for storing bill photos
 [[r2_buckets]]
