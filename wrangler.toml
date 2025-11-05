@@ -21,3 +21,4 @@ bucket_name = "raswise-bills"
 [vars]
 # BOT_TOKEN will be set as a secret using: wrangler secret put BOT_TOKEN
 WEBHOOK_DOMAIN = "" # Set this to your worker domain after deployment
+R2_PUBLIC_URL = "" # Set this to your R2 bucket's public URL
