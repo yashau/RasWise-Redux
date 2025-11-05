@@ -7,12 +7,12 @@ CREATE TABLE IF NOT EXISTS users (
     created_at INTEGER NOT NULL
 );
 
--- Payment details table
-CREATE TABLE IF NOT EXISTS payment_details (
+-- Account details table (bank accounts, UPI, etc.)
+CREATE TABLE IF NOT EXISTS account_details (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    payment_type TEXT NOT NULL, -- 'upi', 'bank', 'card', etc.
-    payment_info TEXT NOT NULL, -- JSON string with payment details
+    account_type TEXT NOT NULL, -- 'upi', 'bank', 'card', etc.
+    account_info TEXT NOT NULL, -- JSON string with account details
     is_active INTEGER DEFAULT 1,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS reminder_settings (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_payment_details_user ON payment_details(user_id);
+CREATE INDEX IF NOT EXISTS idx_account_details_user ON account_details(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_users_group ON group_users(group_id);
 CREATE INDEX IF NOT EXISTS idx_group_users_user ON group_users(user_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id);

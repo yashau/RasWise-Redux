@@ -1,45 +1,26 @@
 import { Context } from 'grammy/web';
 import { Database } from '../db';
-import type { Env, PaymentDetailSession } from '../types';
-import { formatUserName, saveSession } from '../utils';
+import type { Env, AccountDetailSession } from '../types';
+import { formatUserName, saveSession, sendDMWithFallback } from '../utils';
 
 export async function handleRegister(ctx: Context, db: Database) {
   if (!ctx.chat || ctx.chat.type === 'private') {
     return ctx.reply('This command can only be used in group chats.');
   }
 
-  const registeredBy = ctx.from!.id;
-  const groupId = ctx.chat.id;
-  let targetUser: any;
-
-  // Check if replying to a message
-  if (ctx.message?.reply_to_message) {
-    targetUser = ctx.message.reply_to_message.from;
-    if (!targetUser) {
-      return ctx.reply('Could not identify the user to register.');
-    }
-  } else if (ctx.message?.entities) {
-    // Check for text_mention (actual mention of a user in the group)
-    const textMention = ctx.message.entities.find(e => e.type === 'text_mention');
-
-    if (!textMention || !textMention.user) {
-      return ctx.reply(
-        '*Error:* Please either:\n' +
-        '• Reply to the user\'s message with /register\n' +
-        '• Use /register and mention the user (they must be in the group)',
-        { parse_mode: 'Markdown' }
-      );
-    }
-
-    targetUser = textMention.user;
-  } else {
+  if (!ctx.message?.reply_to_message) {
     return ctx.reply(
-      '*Error:* Please either:\n' +
-      '• Reply to the user\'s message with /register\n' +
-      '• Use /register and mention the user (they must be in the group)',
-      { parse_mode: 'Markdown' }
+      'Please reply to a user\'s message with /register to register them in this group.'
     );
   }
+
+  const targetUser = ctx.message.reply_to_message.from;
+  if (!targetUser) {
+    return ctx.reply('Could not identify the user to register.');
+  }
+
+  const registeredBy = ctx.from!.id;
+  const groupId = ctx.chat.id;
 
   // Prevent registering bots
   if (targetUser.is_bot) {
@@ -77,77 +58,83 @@ export async function handleRegister(ctx: Context, db: Database) {
   );
 }
 
-export async function handleSetPayment(ctx: Context, db: Database, kv: KVNamespace) {
+export async function handleSetAccount(ctx: Context, db: Database, kv: KVNamespace) {
   const userId = ctx.from!.id;
 
-  // Start payment detail session
-  const session: PaymentDetailSession = {
+  // Start account detail session
+  const session: AccountDetailSession = {
     step: 'info',
-    payment_type: 'bank'
+    account_type: 'bank'
   };
 
-  await saveSession(kv, `payment_session:${userId}`, session, 300);
+  await saveSession(kv, `account_session:${userId}`, session, 300);
 
-  await ctx.reply(
-    'Let\'s set up your payment details.\n\n' +
+  await sendDMWithFallback(
+    ctx,
+    userId,
+    'Let\'s set up your bank account.\n\n' +
     'Please send your bank account number:'
   );
 }
 
 
-export async function handlePaymentInfo(ctx: Context, db: Database, kv: KVNamespace) {
+export async function handleAccountInfo(ctx: Context, db: Database, kv: KVNamespace) {
   const userId = ctx.from!.id;
-  const sessionKey = `payment_session:${userId}`;
+  const sessionKey = `account_session:${userId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {
-    return; // Not in a payment session
+    return; // Not in an account session
   }
 
-  const session: PaymentDetailSession = JSON.parse(sessionData);
+  const session: AccountDetailSession = JSON.parse(sessionData);
 
-  if (session.step !== 'info' || !session.payment_type) {
+  if (session.step !== 'info' || !session.account_type) {
     return;
   }
 
-  const paymentInfo = ctx.message?.text;
-  if (!paymentInfo) {
+  const accountInfo = ctx.message?.text;
+  if (!accountInfo) {
     return;
   }
 
-  // Save payment details
-  await db.addPaymentDetail(userId, 'bank', {
-    account_number: paymentInfo
+  // Save account details
+  await db.addAccountDetail(userId, 'bank', {
+    account_number: accountInfo
   });
 
   // Clear session
   await kv.delete(sessionKey);
 
-  await ctx.reply(
-    '*Success:* Your payment details have been saved!\n\n' +
-    `Bank Account: ${paymentInfo}\n\n` +
-    'You can update this anytime with /setpayment',
-    { parse_mode: 'Markdown' }
+  await sendDMWithFallback(
+    ctx,
+    userId,
+    '*Success:* Your bank account has been saved!\n\n' +
+    `Bank Account: \`${accountInfo}\`\n\n` +
+    'You can update this anytime with /setaccount'
   );
 }
 
-export async function handleViewPayment(ctx: Context, db: Database) {
+export async function handleViewAccount(ctx: Context, db: Database) {
   const userId = ctx.from!.id;
-  const paymentDetail = await db.getActivePaymentDetail(userId);
+  const accountDetail = await db.getActiveAccountDetail(userId);
 
-  if (!paymentDetail) {
-    return ctx.reply(
-      'You haven\'t set up payment details yet.\n\n' +
-      'Use /setpayment to add your payment information.'
+  if (!accountDetail) {
+    return sendDMWithFallback(
+      ctx,
+      userId,
+      'You haven\'t set up your bank account yet.\n\n' +
+      'Use /setaccount to add your bank account.'
     );
   }
 
-  const info = JSON.parse(paymentDetail.payment_info);
-  await ctx.reply(
-    '*Your Payment Details:*\n\n' +
-    `Bank Account: ${info.account_number}\n\n` +
-    'Use /setpayment to update this.',
-    { parse_mode: 'Markdown' }
+  const info = JSON.parse(accountDetail.account_info);
+  await sendDMWithFallback(
+    ctx,
+    userId,
+    '*Your Bank Account:*\n\n' +
+    `Account Number: \`${info.account_number}\`\n\n` +
+    'Use /setaccount to update this.'
   );
 }
 
@@ -175,6 +162,40 @@ export async function handleListUsers(ctx: Context, db: Database) {
     `*Registered Users (${users.length}):*\n\n${userList}`,
     { parse_mode: 'Markdown' }
   );
+}
+
+export async function handleGroupAccountInfo(ctx: Context, db: Database) {
+  if (!ctx.chat || ctx.chat.type === 'private') {
+    return ctx.reply('This command can only be used in group chats.');
+  }
+
+  const groupId = ctx.chat.id;
+  const users = await db.getGroupUsers(groupId);
+
+  if (users.length === 0) {
+    return ctx.reply(
+      'No users registered yet.\n\n' +
+      'Reply to a user\'s message with /register to add them.'
+    );
+  }
+
+  let message = '*Bank Account Information:*\n\n';
+
+  for (const user of users) {
+    const name = formatUserName(user);
+    const accountDetail = await db.getActiveAccountDetail(user.telegram_id);
+
+    if (accountDetail) {
+      const info = JSON.parse(accountDetail.account_info);
+      message += `${name} - \`${info.account_number}\`\n`;
+    } else {
+      message += `${name} - _No account set_\n`;
+    }
+  }
+
+  message += '\nUse /setaccount to set your bank account';
+
+  await ctx.reply(message, { parse_mode: 'Markdown' });
 }
 
 export async function handleUnregister(ctx: Context, db: Database) {

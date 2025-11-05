@@ -2,7 +2,7 @@ import { Context, InlineKeyboard } from 'grammy/web';
 import { Database } from '../db';
 import { formatUserName, formatAmount, saveSession, sendDMWithFallback } from '../utils';
 
-export async function handleMarkPaid(ctx: Context, db: Database) {
+export async function handlePay(ctx: Context, db: Database) {
   const userId = ctx.from!.id;
 
   let groupId: number | undefined;
@@ -24,7 +24,7 @@ export async function handleMarkPaid(ctx: Context, db: Database) {
   for (const split of unpaidSplits.slice(0, 10)) { // Show max 10 at a time
     const expense = split.expense;
     const label = `#${expense.id} - ${formatAmount(split.amount_owed)}${expense.description ? ` (${expense.description.substring(0, 20)})` : ''}`;
-    keyboard.text(label, `markpaid:${split.id}`).row();
+    keyboard.text(label, `pay:${split.id}`).row();
   }
 
   let message = '*Select an expense to mark as paid:*\n\n';
@@ -37,7 +37,7 @@ export async function handleMarkPaid(ctx: Context, db: Database) {
   await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
-export async function handleMarkPaidCallback(
+export async function handlePayCallback(
   ctx: Context,
   db: Database,
   splitId: number
@@ -58,18 +58,18 @@ export async function handleMarkPaidCallback(
   const expense = split.expense;
 
   // Get payer's payment details (person who paid the full amount)
-  const payerPayment = await db.getActivePaymentDetail(expense.paid_by);
+  const payerAccount = await db.getActiveAccountDetail(expense.paid_by);
 
-  if (!payerPayment) {
+  if (!payerAccount) {
     await ctx.answerCallbackQuery();
     return ctx.reply(
-      '*Warning:* The person who paid this expense hasn\'t set up payment details yet.\n' +
-      'Ask them to use /setpayment to add their payment information.',
+      '*Warning:* The person who paid this expense hasn\'t set up their bank account yet.\n' +
+      'Ask them to use /setaccount to add their bank account.',
       { parse_mode: 'Markdown' }
     );
   }
 
-  const paymentInfo = JSON.parse(payerPayment.payment_info);
+  const accountInfo = JSON.parse(payerAccount.account_info);
   const payer = await db.getUser(expense.paid_by);
   const payerName = formatUserName(payer, expense.paid_by);
 
@@ -77,19 +77,19 @@ export async function handleMarkPaidCallback(
   message += `Amount to pay: ${formatAmount(split.amount_owed)}\n`;
   if (expense.description) message += `For: ${expense.description}\n`;
   message += `\nPay to: ${payerName}\n`;
-  message += `Bank Account: ${paymentInfo.account_number}\n\n`;
+  message += `Bank Account: \`${accountInfo.account_number}\`\n\n`;
   message += `Once you've paid, click the button below to mark as paid.`;
 
   const keyboard = new InlineKeyboard()
-    .text('I\'ve Paid This', `confirmpaid:${splitId}`)
+    .text('I\'ve Paid This', `confirm_pay:${splitId}`)
     .row()
-    .text('Cancel', 'cancel_payment');
+    .text('Cancel', 'cancel_pay');
 
   await ctx.answerCallbackQuery();
   await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
-export async function handleConfirmPaid(
+export async function handleConfirmPay(
   ctx: Context,
   db: Database,
   kv: KVNamespace,
@@ -114,10 +114,10 @@ export async function handleConfirmPaid(
     step: 'photo'
   };
 
-  await saveSession(kv, `payment_session:${userId}`, session);
+  await saveSession(kv, `pay_session:${userId}`, session);
 
   const keyboard = new InlineKeyboard()
-    .text('Skip', `payment_skip:${splitId}`);
+    .text('Skip', `pay_skip:${splitId}`);
 
   await ctx.answerCallbackQuery();
   await ctx.reply(
@@ -127,14 +127,14 @@ export async function handleConfirmPaid(
   );
 }
 
-export async function handlePaymentPhoto(
+export async function handlePayPhoto(
   ctx: Context,
   db: Database,
   kv: KVNamespace,
   r2: R2Bucket,
   userId: number
 ) {
-  const sessionData = await kv.get(`payment_session:${userId}`);
+  const sessionData = await kv.get(`pay_session:${userId}`);
 
   if (!sessionData) {
     return; // No active payment session
@@ -148,7 +148,7 @@ export async function handlePaymentPhoto(
   const split = splits.find(s => s.id === splitId);
 
   if (!split) {
-    await kv.delete(`payment_session:${userId}`);
+    await kv.delete(`pay_session:${userId}`);
     return ctx.reply('Expense not found or already paid.');
   }
 
@@ -184,7 +184,7 @@ export async function handlePaymentPhoto(
   await completePayment(ctx, db, kv, splitId, userId, transferSlipUrl);
 }
 
-export async function handlePaymentSkip(
+export async function handlePaySkip(
   ctx: Context,
   db: Database,
   kv: KVNamespace,
@@ -208,7 +208,7 @@ async function completePayment(
   const split = splits.find(s => s.id === splitId);
 
   if (!split) {
-    await kv.delete(`payment_session:${userId}`);
+    await kv.delete(`pay_session:${userId}`);
     return ctx.reply('Expense not found or already paid.');
   }
 
@@ -227,7 +227,7 @@ async function completePayment(
   );
 
   // Clear session
-  await kv.delete(`payment_session:${userId}`);
+  await kv.delete(`pay_session:${userId}`);
 
   // Notify the person who paid the expense
   const payingUser = await db.getUser(userId);
@@ -259,12 +259,12 @@ async function completePayment(
   );
 }
 
-export async function handleCancelPayment(ctx: Context) {
+export async function handleCancelPay(ctx: Context) {
   await ctx.answerCallbackQuery({ text: 'Cancelled' });
   await ctx.editMessageText('Payment marking cancelled.');
 }
 
-export async function handleAdminMarkPaid(ctx: Context, db: Database) {
+export async function handleAdminPay(ctx: Context, db: Database) {
   if (!ctx.chat || ctx.chat.type === 'private') {
     return ctx.reply('This command can only be used in group chats.');
   }
@@ -278,7 +278,7 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
   // Check if replying to a message
   if (!ctx.message?.reply_to_message) {
     return ctx.reply(
-      '*Error:* Please reply to the user\'s message whose payment you want to mark as paid with /adminmarkpaid',
+      '*Error:* Please reply to the user\'s message whose payment you want to mark as paid with /adminpay',
       { parse_mode: 'Markdown' }
     );
   }
@@ -312,7 +312,7 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
   for (const split of unpaidSplits.slice(0, 10)) { // Show max 10 at a time
     const expense = split.expense;
     const label = `#${expense.id} - ${formatAmount(split.amount_owed)}${expense.description ? ` (${expense.description.substring(0, 20)})` : ''}`;
-    keyboard.text(label, `adminmarkpaid:${split.id}:${targetUserId}`).row();
+    keyboard.text(label, `adminpay:${split.id}:${targetUserId}`).row();
   }
 
   let message = `*Select an expense to mark as paid for ${targetUser.first_name}:*\n\n`;
@@ -324,7 +324,7 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
   await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
-export async function handleAdminMarkPaidCallback(
+export async function handleAdminPayCallback(
   ctx: Context,
   db: Database,
   splitId: number,
@@ -404,7 +404,7 @@ export async function handleAdminMarkPaidCallback(
   );
 }
 
-export async function handleViewPayments(ctx: Context, db: Database) {
+export async function handleViewOwed(ctx: Context, db: Database) {
   const userId = ctx.from!.id;
 
   let groupId: number | undefined;

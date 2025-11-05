@@ -34,7 +34,7 @@ A Telegram bot for splitting expenses among group members, built on Cloudflare W
 graph TD
     A[Create Telegram Group] --> B[Add Bot to Group]
     B --> C[Register Users with /register]
-    C --> D[Users Set Payment Details with /setpayment]
+    C --> D[Users Set Bank Account with /setaccount]
     D --> E[Optional: Enable Reminders with /setreminder]
 ```
 
@@ -145,7 +145,7 @@ Total paid: 50.00
 
 ### 4. Marking an Expense as Paid
 
-**Command**: `/markpaid`
+**Command**: `/pay`
 
 ```
 Step 1: Select Expense
@@ -253,7 +253,7 @@ You have 2 pending expenses
 Total owed: 175.00
 
 Use /myexpenses to see details
-Use /markpaid to mark as paid"
+Use /pay to mark as paid"
 ```
 
 ## Setup Instructions
@@ -366,16 +366,15 @@ npm run deploy
 ### User Management
 - `/start` - Get started and see all commands
 - `/help` - Show help message with all commands
-- `/register` - Register a user in the group
-  - `/register` (reply to user's message)
-  - `/register` (mention the user - they must be in the group)
+- `/register` - Register a user in the group (reply to their message)
 - `/unregister` - Unregister a user from the group (admin only)
   - `/unregister` (reply to user's message)
   - `/unregister @username`
   - `/unregister username`
 - `/listusers` - List all registered users in the group
-- `/setpayment` - Set or update your bank account number
-- `/viewpayment` - View your saved payment details
+- `/setaccount` - Set or update your bank account number (sent via DM)
+- `/viewaccount` - View your saved bank account (sent via DM)
+- `/accountinfo` - View all users' bank account information in the group
 
 ### Expense Management
 - `/addexpense` - Start adding a new expense (8-step interactive flow)
@@ -384,8 +383,8 @@ npm run deploy
 - `/history` - View group expense history with attachments (sent via DM)
 
 ### Payments
-- `/markpaid` - Mark an expense as paid with optional transfer slip
-- `/adminmarkpaid` - Mark payment on behalf of another user (admin only)
+- `/pay` - Mark an expense as paid with optional transfer slip
+- `/adminpay` - Mark payment on behalf of another user (admin only)
 - `/owed` - See who owes you money (sent via DM)
 
 ### Reminders & Settings
@@ -420,12 +419,12 @@ Group admins (creators and administrators) have special permissions:
 - `/unregister` - Remove users from the group (only if they have no pending expenses)
   - Works with reply-to-message, @username, or plain username
   - Can unregister users even if they've left the group
-- `/adminmarkpaid` - Mark payments as paid on behalf of other users
+- `/adminpay` - Mark payments as paid on behalf of other users
   - Requires reply-to-message pattern
 - `/settimezone` - Set the group's timezone for accurate date/time display
 
 **How to Use:**
-- `/adminmarkpaid` uses reply-to-message pattern
+- `/adminpay` uses reply-to-message pattern
 - `/unregister` supports three formats:
   - Reply to the user's message and use `/unregister`
   - Use `/unregister @username`
@@ -438,7 +437,7 @@ Group admins (creators and administrators) have special permissions:
 - User must pay all debts before they can be unregistered
 
 **Admin Mark Paid Flow:**
-1. Reply to target user's message with `/adminmarkpaid`
+1. Reply to target user's message with `/adminpay`
 2. Bot shows list of that user's pending expenses
 3. Select the expense to mark as paid
 4. Bot marks it paid and notifies both the payer and the user
@@ -557,7 +556,7 @@ npm run cf-typegen
 The bot uses the following tables:
 
 - **`users`** - Registered users with Telegram ID, username, and name
-- **`payment_details`** - User payment information (bank accounts)
+- **`account_details`** - User account information (bank accounts)
 - **`group_users`** - User-group registration mapping
 - **`expenses`** - Expense records with amount, description, location, photos
   - `photo_url` - Bill/receipt photo
@@ -653,7 +652,7 @@ Result:
 ```
 Scenario: Charlie paying back Bob for groceries
 
-1. Charlie: /markpaid
+1. Charlie: /pay
 2. Select: Expense #145 (Weekly groceries)
 3. View: Bob's account number displayed
 4. Charlie transfers $80 via banking app
@@ -684,14 +683,14 @@ Available commands:
 /register - Register a user in a group
 /unregister - Unregister a user (admin)
 /listusers - List registered users
-/setpayment - Set your payment details
-/viewpayment - View your payment details
+/setaccount - Set your bank account
+/viewaccount - View your bank account
 /addexpense - Add a new expense
 /myexpenses - View your pending expenses
 /summary - View your expense summary
 /history - View group expense history
-/markpaid - Mark an expense as paid
-/adminmarkpaid - Mark payment on behalf of user (admin)
+/pay - Mark an expense as paid
+/adminpay - Mark payment on behalf of user (admin)
 /owed - See who owes you money
 /setreminder - Toggle daily reminders
 /settimezone - Set group timezone (admin)
@@ -700,8 +699,6 @@ Available commands:
 ```
 
 ### Registering a User
-
-**Method 1: Reply to message**
 
 **Alice**: Hi everyone!
 
@@ -712,18 +709,9 @@ Available commands:
 *Success:* Alice has been registered in this group!
 ```
 
-**Method 2: Mention user**
+### Setting Bank Account
 
-**Bob**: `/register` @Alice
-
-**Bot**:
-```
-*Success:* Alice has been registered in this group!
-```
-
-### Setting Payment Details
-
-**User**: `/setpayment`
+**User**: `/setaccount`
 
 **Bot**:
 ```
@@ -738,7 +726,7 @@ Please send your bank account number:
 
 Bank Account: 1234567890
 
-You can update this anytime with /setpayment
+You can update this anytime with /setaccount
 ```
 
 ### Adding an Expense (Full Flow)
@@ -855,7 +843,7 @@ Date: 2025/01/15
 Total pending: 150.00
 
 Use /summary for a cumulative summary
-Use /markpaid to mark expenses as paid
+Use /pay to mark expenses as paid
 ```
 
 ### Viewing Payment History
@@ -889,12 +877,12 @@ Date: 2025/01/15
 Total paid: 150.00
 
 Use /summary for a cumulative summary
-Use /markpaid to mark expenses as paid
+Use /pay to mark expenses as paid
 ```
 
 ### Marking an Expense as Paid
 
-**User**: `/markpaid`
+**User**: `/pay`
 
 **Bot**:
 ```
@@ -978,7 +966,7 @@ Transfer slip: [View]
   • Dave: 25.00 (1 expense)
 
 Use /myexpenses to see detailed breakdown
-Use /markpaid to mark expenses as paid
+Use /pay to mark expenses as paid
 ```
 
 ### Viewing Who Owes You
@@ -1051,6 +1039,22 @@ Showing last 3 expenses
 4. Dave
 ```
 
+### Viewing Bank Account Information
+
+**User**: `/accountinfo`
+
+**Bot**:
+```
+*Payment Information:*
+
+Alice - `1234567890`
+Bob - `9876543210`
+Charlie - No payment info set
+Dave - `5555555555`
+
+Use /setaccount to set your bank account
+```
+
 ### Setting Reminders
 
 **User**: `/setreminder`
@@ -1079,7 +1083,7 @@ You have 2 pending expenses
 Total owed: 175.00
 
 Use /myexpenses to see details
-Use /markpaid to mark as paid
+Use /pay to mark as paid
 ```
 
 ### Unregistering a User (Admin Only)
@@ -1166,7 +1170,7 @@ To change the timezone, use /settimezone (admin only)
 
 ### Admin Marking Payment on Behalf of User
 
-**Admin** (replying to Bob's message): `/adminmarkpaid`
+**Admin** (replying to Bob's message): `/adminpay`
 
 **Bot**:
 ```
@@ -1218,7 +1222,7 @@ Ask a group admin to reply to one of your messages with /register
 **User tries to mark paid when person hasn't set payment details**:
 ```
 *Error:* The person who paid this expense hasn't set up payment details yet.
-Ask them to use /setpayment to add their payment information.
+Ask them to use /setaccount to add their bank account.
 ```
 
 **Session expires**:

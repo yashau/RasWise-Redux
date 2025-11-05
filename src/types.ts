@@ -15,11 +15,11 @@ export interface User {
   created_at: number;
 }
 
-export interface PaymentDetail {
+export interface AccountDetail {
   id: number;
   user_id: number;
-  payment_type: string;
-  payment_info: string; // JSON string
+  account_type: string;
+  account_info: string; // JSON string
   is_active: number;
   created_at: number;
   updated_at: number;
@@ -90,12 +90,12 @@ export interface ExpenseSession {
   custom_splits?: { [user_id: number]: number };
 }
 
-export interface PaymentDetailSession {
+export interface AccountDetailSession {
   step: 'type' | 'info';
-  payment_type?: string;
+  account_type?: string;
 }
 
-export interface MarkPaidSession {
+export interface PaySession {
   split_id: number;
   step: 'confirm' | 'photo';
 }

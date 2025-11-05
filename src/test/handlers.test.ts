@@ -44,13 +44,13 @@ describe('Handler Integration Tests', () => {
         first_name: 'User1'
       });
 
-      await db.addPaymentDetail(111, 'bank', {
+      await db.addAccountDetail(111, 'bank', {
         account_number: '1234567890'
       });
 
-      const paymentDetail = await db.getActivePaymentDetail(111);
-      expect(paymentDetail).toBeDefined();
-      const info = JSON.parse(paymentDetail!.payment_info);
+      const accountDetail = await db.getActiveAccountDetail(111);
+      expect(accountDetail).toBeDefined();
+      const info = JSON.parse(accountDetail!.account_info);
       expect(info.account_number).toBe('1234567890');
     });
   });
@@ -154,7 +154,7 @@ describe('Handler Integration Tests', () => {
       await db.registerUserInGroup(-100, 222, 111);
 
       // Add payment details
-      await db.addPaymentDetail(111, 'bank', {
+      await db.addAccountDetail(111, 'bank', {
         account_number: '1111111111'
       });
 
@@ -175,9 +175,9 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should retrieve payment details for expense creator', async () => {
-      const paymentDetail = await db.getActivePaymentDetail(111);
-      expect(paymentDetail).toBeDefined();
-      const info = JSON.parse(paymentDetail!.payment_info);
+      const accountDetail = await db.getActiveAccountDetail(111);
+      expect(accountDetail).toBeDefined();
+      const info = JSON.parse(accountDetail!.account_info);
       expect(info.account_number).toBe('1111111111');
     });
 

@@ -5,11 +5,12 @@ import type { Env, ExpenseSession } from './types';
 // Import handlers
 import {
   handleRegister,
-  handleSetPayment,
-  handlePaymentInfo,
-  handleViewPayment,
+  handleSetAccount,
+  handleAccountInfo,
+  handleViewAccount,
   handleListUsers,
-  handleUnregister
+  handleUnregister,
+  handleGroupAccountInfo
 } from './handlers/registration';
 
 import {
@@ -35,15 +36,15 @@ import {
 } from './handlers/history';
 
 import {
-  handleMarkPaid,
-  handleMarkPaidCallback,
-  handleConfirmPaid,
-  handleCancelPayment,
-  handleViewPayments,
-  handlePaymentPhoto,
-  handlePaymentSkip,
-  handleAdminMarkPaid,
-  handleAdminMarkPaidCallback
+  handlePay,
+  handlePayCallback,
+  handleConfirmPay,
+  handleCancelPay,
+  handleViewOwed,
+  handlePayPhoto,
+  handlePaySkip,
+  handleAdminPay,
+  handleAdminPayCallback
 } from './handlers/payments';
 
 import {
@@ -98,14 +99,15 @@ export default {
           '/register - Register a user in a group\n' +
           '/unregister - Unregister a user (admin)\n' +
           '/listusers - List registered users\n' +
-          '/setpayment - Set your payment details\n' +
-          '/viewpayment - View your payment details\n' +
+          '/setaccount - Set your bank account (DM)\n' +
+          '/viewaccount - View your bank account (DM)\n' +
+          '/accountinfo - View all users\' bank accounts\n' +
           '/addexpense - Add a new expense\n' +
           '/myexpenses - View your pending expenses\n' +
           '/summary - View your expense summary\n' +
           '/history - View group expense history\n' +
-          '/markpaid - Mark an expense as paid\n' +
-          '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
+          '/pay - Mark an expense as paid\n' +
+          '/adminpay - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money\n' +
           '/setreminder - Toggle daily reminders\n' +
           '/settimezone - Set group timezone (admin)\n' +
@@ -119,10 +121,11 @@ export default {
           '*RasWise Redux Help*\n\n' +
           '*User Management:*\n' +
           '/listusers - See all registered users in this group\n' +
-          '/register - Manually register a user (mention or reply)\n' +
+          '/register - Manually register a user (reply to their message)\n' +
           '/unregister - Unregister a user from the group (admin)\n' +
-          '/setpayment - Set/update your bank account\n' +
-          '/viewpayment - View your saved payment details\n' +
+          '/setaccount - Set/update your bank account (DM)\n' +
+          '/viewaccount - View your bank account (DM)\n' +
+          '/accountinfo - View all users\' bank accounts\n' +
           '*Note:* Users are auto-registered on first message\n\n' +
           '*Expense Management:*\n' +
           '/addexpense - Add a new expense to split\n' +
@@ -130,14 +133,14 @@ export default {
           '/summary - See your expense summary (DM)\n' +
           '/history - See group expense history (DM)\n\n' +
           '*Payments:*\n' +
-          '/markpaid - Mark an expense as paid\n' +
-          '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
+          '/pay - Mark an expense as paid\n' +
+          '/adminpay - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money (DM)\n\n' +
           '*Reminders:*\n' +
           '/setreminder - Enable/disable daily reminders (admin)\n' +
           '/reminderstatus - Check reminder status\n\n' +
           '*Timezone:*\n' +
-          '/settimezone - Set group timezone (admin only)\n' +
+          '/settimezone - Set group timezone (admin)\n' +
           '/viewtimezone - View current timezone\n\n' +
           'Group commands work in group chats.\n' +
           'Personal info is sent via DM for privacy!',
@@ -148,17 +151,18 @@ export default {
       bot.command('register', (ctx) => handleRegister(ctx, db));
       bot.command('unregister', (ctx) => handleUnregister(ctx, db));
       bot.command('listusers', (ctx) => handleListUsers(ctx, db));
-      bot.command('setpayment', (ctx) => handleSetPayment(ctx, db, env.KV));
-      bot.command('viewpayment', (ctx) => handleViewPayment(ctx, db));
+      bot.command('setaccount', (ctx) => handleSetAccount(ctx, db, env.KV));
+      bot.command('viewaccount', (ctx) => handleViewAccount(ctx, db));
+      bot.command('accountinfo', (ctx) => handleGroupAccountInfo(ctx, db));
 
       bot.command('addexpense', (ctx) => handleAddExpense(ctx, db, env.KV));
       bot.command('myexpenses', (ctx) => handleMyExpenses(ctx, db, env.R2_PUBLIC_URL));
       bot.command('summary', (ctx) => handleSummary(ctx, db));
       bot.command('history', (ctx) => handleHistory(ctx, db, env.R2_PUBLIC_URL));
 
-      bot.command('markpaid', (ctx) => handleMarkPaid(ctx, db));
-      bot.command('adminmarkpaid', (ctx) => handleAdminMarkPaid(ctx, db));
-      bot.command('owed', (ctx) => handleViewPayments(ctx, db));
+      bot.command('pay', (ctx) => handlePay(ctx, db));
+      bot.command('adminpay', (ctx) => handleAdminPay(ctx, db));
+      bot.command('owed', (ctx) => handleViewOwed(ctx, db));
 
       bot.command('setreminder', (ctx) => handleSetReminder(ctx, db));
       bot.command('reminderstatus', (ctx) => handleReminderStatus(ctx, db));
@@ -235,28 +239,28 @@ export default {
         await handleSkip(ctx, db, env.KV, env.BILLS_BUCKET, field, session.group_id!, currentUserId);
       });
 
-      bot.callbackQuery(/^markpaid:(.+)$/, async (ctx) => {
+      bot.callbackQuery(/^pay:(.+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
-        await handleMarkPaidCallback(ctx, db, splitId);
+        await handlePayCallback(ctx, db, splitId);
       });
 
-      bot.callbackQuery(/^adminmarkpaid:(\d+):(\d+)$/, async (ctx) => {
+      bot.callbackQuery(/^adminpay:(\d+):(\d+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
         const targetUserId = parseInt(ctx.match![2]);
-        await handleAdminMarkPaidCallback(ctx, db, splitId, targetUserId);
+        await handleAdminPayCallback(ctx, db, splitId, targetUserId);
       });
 
-      bot.callbackQuery(/^confirmpaid:(.+)$/, async (ctx) => {
+      bot.callbackQuery(/^confirm_pay:(.+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
-        await handleConfirmPaid(ctx, db, env.KV, splitId);
+        await handleConfirmPay(ctx, db, env.KV, splitId);
       });
 
-      bot.callbackQuery(/^payment_skip:(.+)$/, async (ctx) => {
+      bot.callbackQuery(/^pay_skip:(.+)$/, async (ctx) => {
         const splitId = parseInt(ctx.match![1]);
-        await handlePaymentSkip(ctx, db, env.KV, splitId);
+        await handlePaySkip(ctx, db, env.KV, splitId);
       });
 
-      bot.callbackQuery('cancel_payment', (ctx) => handleCancelPayment(ctx));
+      bot.callbackQuery('cancel_pay', (ctx) => handleCancelPay(ctx));
 
       // Message handlers for expense session flow
       bot.on('message:text', async (ctx) => {
@@ -273,12 +277,12 @@ export default {
           return;
         }
 
-        // Check for payment session
-        const paymentSessionKey = `payment_session:${userId}`;
-        const paymentSessionData = await env.KV.get(paymentSessionKey);
+        // Check for account session
+        const accountSessionKey = `account_session:${userId}`;
+        const accountSessionData = await env.KV.get(accountSessionKey);
 
-        if (paymentSessionData) {
-          await handlePaymentInfo(ctx, db, env.KV);
+        if (accountSessionData) {
+          await handleAccountInfo(ctx, db, env.KV);
           return;
         }
 
@@ -309,10 +313,10 @@ export default {
       bot.on('message:photo', async (ctx) => {
         const userId = ctx.from!.id;
 
-        // Check for payment session first
-        const paymentSessionData = await env.KV.get(`payment_session:${userId}`);
-        if (paymentSessionData) {
-          await handlePaymentPhoto(ctx, db, env.KV, env.BILLS_BUCKET, userId);
+        // Check for pay session first
+        const paySessionData = await env.KV.get(`pay_session:${userId}`);
+        if (paySessionData) {
+          await handlePayPhoto(ctx, db, env.KV, env.BILLS_BUCKET, userId);
           return;
         }
 

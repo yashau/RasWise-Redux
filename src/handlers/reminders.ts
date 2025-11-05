@@ -42,7 +42,7 @@ export async function sendReminders(db: Database, botToken: string) {
           `You have ${unpaidSplits.length} pending expense${unpaidSplits.length > 1 ? 's' : ''}\n` +
           `Total owed: ${formatAmount(totalOwed)}\n\n` +
           `Use /myexpenses to see details\n` +
-          `Use /markpaid to mark as paid`;
+          `Use /pay to mark as paid`;
 
         // Send reminder via DM
         try {

@@ -84,34 +84,34 @@ describe('Database', () => {
     });
 
     it('should add payment details', async () => {
-      await db.addPaymentDetail(123456, 'bank', {
+      await db.addAccountDetail(123456, 'bank', {
         account_number: '1234567890'
       });
 
-      const payment = await db.getActivePaymentDetail(123456);
-      expect(payment).toBeDefined();
-      expect(payment?.payment_type).toBe('bank');
-      const info = JSON.parse(payment!.payment_info);
+      const account = await db.getActiveAccountDetail(123456);
+      expect(account).toBeDefined();
+      expect(account?.account_type).toBe('bank');
+      const info = JSON.parse(account!.account_info);
       expect(info.account_number).toBe('1234567890');
     });
 
     it('should deactivate old payment details when adding new ones', async () => {
-      await db.addPaymentDetail(123456, 'bank', {
+      await db.addAccountDetail(123456, 'bank', {
         account_number: '1111111111'
       });
 
-      await db.addPaymentDetail(123456, 'bank', {
+      await db.addAccountDetail(123456, 'bank', {
         account_number: '2222222222'
       });
 
-      const payment = await db.getActivePaymentDetail(123456);
-      const info = JSON.parse(payment!.payment_info);
+      const account = await db.getActiveAccountDetail(123456);
+      const info = JSON.parse(account!.account_info);
       expect(info.account_number).toBe('2222222222');
     });
 
     it('should return null for user without payment details', async () => {
-      const payment = await db.getActivePaymentDetail(123456);
-      expect(payment).toBeNull();
+      const account = await db.getActiveAccountDetail(123456);
+      expect(account).toBeNull();
     });
   });
 

@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type {
   User,
-  PaymentDetail,
+  AccountDetail,
   GroupUser,
   Expense,
   ExpenseSplit,
@@ -33,34 +33,34 @@ export class Database {
     return result;
   }
 
-  // Payment details operations
-  async addPaymentDetail(
+  // Account details operations
+  async addAccountDetail(
     user_id: number,
-    payment_type: string,
-    payment_info: object
+    account_type: string,
+    account_info: object
   ): Promise<void> {
-    // Deactivate previous payment details
+    // Deactivate previous account details
     await this.db.prepare(`
-      UPDATE payment_details SET is_active = 0 WHERE user_id = ?
+      UPDATE account_details SET is_active = 0 WHERE user_id = ?
     `).bind(user_id).run();
 
-    // Add new payment detail
+    // Add new account detail
     await this.db.prepare(`
-      INSERT INTO payment_details (user_id, payment_type, payment_info, created_at, updated_at)
+      INSERT INTO account_details (user_id, account_type, account_info, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?)
     `).bind(
       user_id,
-      payment_type,
-      JSON.stringify(payment_info),
+      account_type,
+      JSON.stringify(account_info),
       Date.now(),
       Date.now()
     ).run();
   }
 
-  async getActivePaymentDetail(user_id: number): Promise<PaymentDetail | null> {
+  async getActiveAccountDetail(user_id: number): Promise<AccountDetail | null> {
     const result = await this.db.prepare(`
-      SELECT * FROM payment_details WHERE user_id = ? AND is_active = 1
-    `).bind(user_id).first<PaymentDetail>();
+      SELECT * FROM account_details WHERE user_id = ? AND is_active = 1
+    `).bind(user_id).first<AccountDetail>();
     return result;
   }
 

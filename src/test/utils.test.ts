@@ -240,7 +240,7 @@ describe('Utility Functions', () => {
     });
 
     it('should save session with custom TTL', async () => {
-      const session = { step: 'info', payment_type: 'bank' };
+      const session = { step: 'info', account_type: 'bank' };
 
       await saveSession(mockKv, 'payment-key', session, 300);
 

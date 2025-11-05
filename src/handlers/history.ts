@@ -83,7 +83,7 @@ export async function handleMyExpenses(ctx: Context, db: Database, r2PublicUrl: 
   }
 
   message += `\n\nUse /summary for a cumulative summary`;
-  message += `\nUse /markpaid to mark expenses as paid`;
+  message += `\nUse /pay to mark expenses as paid`;
 
   await sendDMWithFallback(ctx, userId, message);
 }
@@ -140,7 +140,7 @@ export async function handleSummary(ctx: Context, db: Database) {
   }
 
   message += `\nUse /myexpenses to see detailed breakdown`;
-  message += `\nUse /markpaid to mark expenses as paid`;
+  message += `\nUse /pay to mark expenses as paid`;
 
   await sendDMWithFallback(ctx, userId, message);
 }
