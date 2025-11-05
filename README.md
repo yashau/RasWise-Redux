@@ -366,7 +366,9 @@ npm run deploy
 ### User Management
 - `/start` - Get started and see all commands
 - `/help` - Show help message with all commands
-- `/register` - Reply to a user's message to register them in the group
+- `/register` - Register a user in the group
+  - `/register` (reply to user's message)
+  - `/register` (mention the user - they must be in the group)
 - `/unregister` - Unregister a user from the group (admin only)
   - `/unregister` (reply to user's message)
   - `/unregister @username`
@@ -699,9 +701,20 @@ Available commands:
 
 ### Registering a User
 
+**Method 1: Reply to message**
+
 **Alice**: Hi everyone!
 
 **Bob** (replying to Alice): `/register`
+
+**Bot**:
+```
+*Success:* Alice has been registered in this group!
+```
+
+**Method 2: Mention user**
+
+**Bob**: `/register` @Alice
 
 **Bot**:
 ```

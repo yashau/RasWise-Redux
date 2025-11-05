@@ -8,15 +8,37 @@ export async function handleRegister(ctx: Context, db: Database) {
     return ctx.reply('This command can only be used in group chats.');
   }
 
-  if (!ctx.message?.reply_to_message) {
-    return ctx.reply(
-      'Please reply to a user\'s message with /register to register them in this group.'
-    );
-  }
+  const registeredBy = ctx.from!.id;
+  const groupId = ctx.chat.id;
+  let targetUser: any;
 
-  const targetUser = ctx.message.reply_to_message.from;
-  if (!targetUser) {
-    return ctx.reply('Could not identify the user to register.');
+  // Check if replying to a message
+  if (ctx.message?.reply_to_message) {
+    targetUser = ctx.message.reply_to_message.from;
+    if (!targetUser) {
+      return ctx.reply('Could not identify the user to register.');
+    }
+  } else if (ctx.message?.entities) {
+    // Check for text_mention (actual mention of a user in the group)
+    const textMention = ctx.message.entities.find(e => e.type === 'text_mention');
+
+    if (!textMention || !textMention.user) {
+      return ctx.reply(
+        '*Error:* Please either:\n' +
+        '• Reply to the user\'s message with /register\n' +
+        '• Use /register and mention the user (they must be in the group)',
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    targetUser = textMention.user;
+  } else {
+    return ctx.reply(
+      '*Error:* Please either:\n' +
+      '• Reply to the user\'s message with /register\n' +
+      '• Use /register and mention the user (they must be in the group)',
+      { parse_mode: 'Markdown' }
+    );
   }
 
   // Prevent registering bots
@@ -24,8 +46,16 @@ export async function handleRegister(ctx: Context, db: Database) {
     return ctx.reply('*Error:* Cannot register bots.', { parse_mode: 'Markdown' });
   }
 
-  const registeredBy = ctx.from!.id;
-  const groupId = ctx.chat.id;
+  // Check if user is already registered
+  const isRegistered = await db.isUserInGroup(groupId, targetUser.id);
+  if (isRegistered) {
+    const user = await db.getUser(targetUser.id);
+    const name = formatUserName(user, targetUser.id);
+    return ctx.reply(
+      `*Note:* ${name} is already registered in this group.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
 
   // Create user if doesn't exist
   await db.createUser({
