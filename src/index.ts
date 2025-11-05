@@ -70,6 +70,25 @@ export default {
       const bot = new Bot(env.BOT_TOKEN);
       const db = new Database(env.DB);
 
+      // Middleware: Auto-register users on any message in group chats
+      bot.use(async (ctx, next) => {
+        if (ctx.chat?.type !== 'private' && ctx.from && !ctx.from.is_bot) {
+          const isRegistered = await db.isUserInGroup(ctx.chat.id, ctx.from.id);
+          if (!isRegistered) {
+            // Create user if doesn't exist
+            await db.createUser({
+              telegram_id: ctx.from.id,
+              username: ctx.from.username,
+              first_name: ctx.from.first_name,
+              last_name: ctx.from.last_name
+            });
+            // Register user in group (registered_by is themselves for auto-registration)
+            await db.registerUserInGroup(ctx.chat.id, ctx.from.id, ctx.from.id);
+          }
+        }
+        await next();
+      });
+
       // Command handlers
       bot.command('start', async (ctx) => {
         await ctx.reply(
@@ -243,22 +262,6 @@ export default {
       bot.on('message:text', async (ctx) => {
         const userId = ctx.from!.id;
         const chatId = ctx.chat!.id;
-
-        // Auto-register users on first message in group chats
-        if (ctx.chat?.type !== 'private' && ctx.from && !ctx.from.is_bot) {
-          const isRegistered = await db.isUserInGroup(chatId, userId);
-          if (!isRegistered) {
-            // Create user if doesn't exist
-            await db.createUser({
-              telegram_id: userId,
-              username: ctx.from.username,
-              first_name: ctx.from.first_name,
-              last_name: ctx.from.last_name
-            });
-            // Register user in group (registered_by is themselves for auto-registration)
-            await db.registerUserInGroup(chatId, userId, userId);
-          }
-        }
 
         // Check for timezone session
         const timezoneSessionKey = `timezone_session:${chatId}:${userId}`;

@@ -19,6 +19,11 @@ export async function handleRegister(ctx: Context, db: Database) {
     return ctx.reply('Could not identify the user to register.');
   }
 
+  // Prevent registering bots
+  if (targetUser.is_bot) {
+    return ctx.reply('*Error:* Cannot register bots.', { parse_mode: 'Markdown' });
+  }
+
   const registeredBy = ctx.from!.id;
   const groupId = ctx.chat.id;
 
