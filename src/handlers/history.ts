@@ -26,8 +26,9 @@ export async function handleMyExpenses(ctx: Context, db: Database, r2PublicUrl: 
   if (unpaidSplits.length === 0 && payments.length === 0) {
     await ctx.api.sendMessage(
       userId,
-      '🎉 You have no pending expenses and no payment history!' +
-      (groupId ? ' (in this group)' : '')
+      '*Great news:* You have no pending expenses and no payment history!' +
+      (groupId ? ' (in this group)' : ''),
+      { parse_mode: 'Markdown' }
     );
     return;
   }
@@ -36,20 +37,20 @@ export async function handleMyExpenses(ctx: Context, db: Database, r2PublicUrl: 
 
   // Show pending expenses
   if (unpaidSplits.length > 0) {
-    message += '📊 Your Pending Expenses:\n\n';
+    message += '*Your Pending Expenses:*\n\n';
 
     for (const split of unpaidSplits) {
       const expense = split.expense;
       const paidBy = await db.getUser(expense.paid_by);
       const paidByName = formatUserName(paidBy, expense.paid_by);
 
-      message += `💰 Expense #${expense.group_expense_number}\n`;
+      message += `*Expense #${expense.group_expense_number}*\n`;
       message += `Total amount: ${formatAmount(expense.amount)}\n`;
       message += `Amount you owe: ${formatAmount(split.amount_owed)}\n`;
       if (expense.description) message += `Description: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
-      if (expense.photo_url) message += `📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
-      if (expense.vendor_payment_slip_url) message += `🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
+      if (expense.photo_url) message += `*Bill photo:* [View](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+      if (expense.vendor_payment_slip_url) message += `*Vendor slip:* [View](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
       message += `Fronted by: ${paidByName}\n`;
       message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
       message += `\n`;
@@ -61,19 +62,19 @@ export async function handleMyExpenses(ctx: Context, db: Database, r2PublicUrl: 
   // Show payment history
   if (payments.length > 0) {
     message += `\n━━━━━━━━━━━━━━━━\n\n`;
-    message += `💳 Your Payment History:\n\n`;
+    message += `*Your Payment History:*\n\n`;
 
     for (const payment of payments) {
       const expense = payment.expense;
       const paidTo = await db.getUser(payment.paid_to);
       const paidToName = formatUserName(paidTo, payment.paid_to);
 
-      message += `✅ Payment #${payment.id}\n`;
+      message += `*Payment #${payment.id}*\n`;
       message += `Amount paid: ${formatAmount(payment.amount)}\n`;
       message += `Paid to: ${paidToName}\n`;
       if (expense.description) message += `For: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
-      if (payment.transfer_slip_url) message += `📷 [Transfer slip](${getPublicPhotoUrl(payment.transfer_slip_url, r2PublicUrl)})\n`;
+      if (payment.transfer_slip_url) message += `*Transfer slip:* [View](${getPublicPhotoUrl(payment.transfer_slip_url, r2PublicUrl)})\n`;
       message += `Date: ${formatDate(payment.paid_at, timezoneOffset)}\n`;
       message += `\n`;
     }
@@ -124,18 +125,18 @@ export async function handleSummary(ctx: Context, db: Database) {
     oweByPerson[creatorId].count += 1;
   }
 
-  let message = '📊 Your Expense Summary:\n\n';
-  message += `💸 Total Unpaid: ${formatAmount(summary.total_owed)}\n`;
-  message += `✅ Total Paid: ${formatAmount(summary.total_paid)}\n`;
-  message += `📝 Pending Expenses: ${summary.unpaid_count}\n\n`;
+  let message = '*Your Expense Summary:*\n\n';
+  message += `*Total Unpaid:* ${formatAmount(summary.total_owed)}\n`;
+  message += `*Total Paid:* ${formatAmount(summary.total_paid)}\n`;
+  message += `*Pending Expenses:* ${summary.unpaid_count}\n\n`;
 
   if (Object.keys(oweByPerson).length > 0) {
-    message += '💰 You owe:\n';
+    message += '*You owe:*\n';
     for (const [creatorId, info] of Object.entries(oweByPerson)) {
       message += `  • ${info.name}: ${formatAmount(info.amount)} (${info.count} expense${info.count > 1 ? 's' : ''})\n`;
     }
   } else {
-    message += '🎉 You don\'t owe anyone!\n';
+    message += '*Great news:* You don\'t owe anyone!\n';
   }
 
   message += `\nUse /myexpenses to see detailed breakdown`;
@@ -169,7 +170,7 @@ export async function handleHistory(ctx: Context, db: Database, r2PublicUrl: str
     return;
   }
 
-  let message = '📚 Recent Expense History:\n\n';
+  let message = '*Recent Expense History:*\n\n';
 
   for (const expense of expenses) {
     const creator = await db.getUser(expense.created_by);
@@ -178,11 +179,12 @@ export async function handleHistory(ctx: Context, db: Database, r2PublicUrl: str
     const splits = await db.getExpenseSplits(expense.id);
     const paidCount = splits.filter(s => s.paid === 1).length;
 
-    message += `💰 #${expense.group_expense_number} - ${formatAmount(expense.amount)}\n`;
-    if (expense.description) message += `   📝 ${expense.description}\n`;
-    if (expense.location) message += `   📍 ${expense.location}\n`;
-    if (expense.photo_url) message += `   📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
-    if (expense.vendor_payment_slip_url) message += `   🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
+    message += `*Expense #${expense.group_expense_number}*\n`;
+    message += `   Amount: ${formatAmount(expense.amount)}\n`;
+    if (expense.description) message += `   Description: ${expense.description}\n`;
+    if (expense.location) message += `   Location: ${expense.location}\n`;
+    if (expense.photo_url) message += `   Bill photo: [View](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+    if (expense.vendor_payment_slip_url) message += `   Vendor slip: [View](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
     message += `   By: ${creatorName} | ${formatDate(expense.created_at, timezoneOffset)}\n`;
     message += `   Split: ${expense.split_type} among ${splits.length} user(s)\n`;
     message += `   Status: ${paidCount}/${splits.length} paid\n\n`;
@@ -217,21 +219,21 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
   const creator = await db.getUser(expense.created_by);
   const creatorName = formatUserName(creator, expense.created_by);
 
-  let message = `💰 Expense #${expense.group_expense_number} Details:\n\n`;
+  let message = `*Expense #${expense.group_expense_number} Details:*\n\n`;
   message += `Amount: ${formatAmount(expense.amount)}\n`;
   if (expense.description) message += `Description: ${expense.description}\n`;
   if (expense.location) message += `Location: ${expense.location}\n`;
-  if (expense.photo_url) message += `📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
-  if (expense.vendor_payment_slip_url) message += `🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
+  if (expense.photo_url) message += `*Bill photo:* [View](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+  if (expense.vendor_payment_slip_url) message += `*Vendor slip:* [View](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
   message += `Created by: ${creatorName}\n`;
   message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
   message += `Split type: ${expense.split_type}\n\n`;
 
-  message += `👥 Split details:\n`;
+  message += `*Split details:*\n`;
   for (const split of splits) {
     const user = await db.getUser(split.user_id);
     const userName = formatUserName(user, split.user_id);
-    const status = split.paid ? '✅ Paid' : '❌ Unpaid';
+    const status = split.paid ? '*Paid*' : '*Unpaid*';
     message += `  • ${userName}: ${formatAmount(split.amount_owed)} ${status}\n`;
   }
 

@@ -33,12 +33,13 @@ export async function handleAddExpense(ctx: Context, db: Database, kv: KVNamespa
   try {
     await ctx.api.sendMessage(
       userId,
-      '💰 Let\'s add a new expense!\n\n' +
+      'Let\'s add a new expense!\n\n' +
       'Step 1: Please enter the total amount (just the number):'
     );
   } catch (error) {
     await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
+      '*Error:* I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".',
+      { parse_mode: 'Markdown' }
     );
   }
 }
@@ -162,7 +163,7 @@ export async function handleExpensePhoto(
       session.photo_url = key;
     } catch (error) {
       console.error(`[R2 PHOTO ERROR]`, error);
-      await ctx.reply('⚠️ Error uploading photo. Continuing without it.');
+      await ctx.reply('*Warning:* Error uploading photo. Continuing without it.', { parse_mode: 'Markdown' });
     }
   }
 
@@ -491,8 +492,9 @@ export async function handleCustomSplit(
 
     if (Math.abs(total - session.amount!) > 0.01) {
       return ctx.reply(
-        `⚠️ Warning: Custom splits total (${total}) doesn't match expense amount (${session.amount}).\n\n` +
-        'Please re-enter the splits or use /addexpense to start over.'
+        `*Warning:* Custom splits total (${total}) doesn't match expense amount (${session.amount}).\n\n` +
+        'Please re-enter the splits or use /addexpense to start over.',
+        { parse_mode: 'Markdown' }
       );
     }
 
@@ -570,12 +572,12 @@ async function createExpense(
   const payer = users.find(u => u.telegram_id === session.paid_by);
   const payerName = formatUserName(payer, session.paid_by);
 
-  let message = '✅ Expense added successfully!\n\n';
-  message += `💰 Total Amount: ${session.amount}\n`;
-  message += `💳 Paid by: ${payerName}\n`;
-  if (session.description) message += `📝 Description: ${session.description}\n`;
-  if (session.location) message += `📍 Location: ${session.location}\n`;
-  message += `\n👥 To be paid by ${Object.keys(splitAmounts).length} user(s):\n`;
+  let message = '*Success:* Expense added successfully!\n\n';
+  message += `*Total Amount:* ${session.amount}\n`;
+  message += `*Paid by:* ${payerName}\n`;
+  if (session.description) message += `*Description:* ${session.description}\n`;
+  if (session.location) message += `*Location:* ${session.location}\n`;
+  message += `\n*To be paid by ${Object.keys(splitAmounts).length} user(s):*\n`;
 
   for (const [uid, amount] of Object.entries(splitAmounts)) {
     const user = users.find(u => u.telegram_id === parseInt(uid));
@@ -586,17 +588,17 @@ async function createExpense(
   message += `\nExpense ID: #${groupExpenseNumber}`;
 
   // Send confirmation to DM
-  await ctx.reply(message);
+  await ctx.reply(message, { parse_mode: 'Markdown' });
 
   // Also send summary to the group
-  let groupMessage = `✅ New expense added by ${formatUserName(users.find(u => u.telegram_id === userId), userId)}\n\n`;
-  groupMessage += `💰 Amount: ${formatAmount(session.amount!)}\n`;
-  if (session.description) groupMessage += `📝 Description: ${session.description}\n`;
-  if (session.location) groupMessage += `📍 Location: ${session.location}\n`;
-  if (session.photo_url) groupMessage += `📷 [Bill photo](${getPublicPhotoUrl(session.photo_url, r2PublicUrl)})\n`;
-  if (session.vendor_payment_slip_url) groupMessage += `🧾 [Vendor slip](${getPublicPhotoUrl(session.vendor_payment_slip_url, r2PublicUrl)})\n`;
-  groupMessage += `💳 Paid by: ${payerName}\n`;
-  groupMessage += `👥 Split among ${Object.keys(splitAmounts).length} user(s)\n`;
+  let groupMessage = `*Success:* New expense added by ${formatUserName(users.find(u => u.telegram_id === userId), userId)}\n\n`;
+  groupMessage += `*Amount:* ${formatAmount(session.amount!)}\n`;
+  if (session.description) groupMessage += `*Description:* ${session.description}\n`;
+  if (session.location) groupMessage += `*Location:* ${session.location}\n`;
+  if (session.photo_url) groupMessage += `*Bill photo:* [View](${getPublicPhotoUrl(session.photo_url, r2PublicUrl)})\n`;
+  if (session.vendor_payment_slip_url) groupMessage += `*Vendor slip:* [View](${getPublicPhotoUrl(session.vendor_payment_slip_url, r2PublicUrl)})\n`;
+  groupMessage += `*Paid by:* ${payerName}\n`;
+  groupMessage += `*Split among:* ${Object.keys(splitAmounts).length} user(s)\n`;
   groupMessage += `\nExpense ID: #${groupExpenseNumber}`;
 
   await ctx.api.sendMessage(groupId, groupMessage, { parse_mode: 'Markdown' });
@@ -606,7 +608,7 @@ async function createExpense(
     const photoData = await r2.get(session.photo_url);
     if (photoData) {
       // Note: In a real implementation, you'd need to generate a public URL or send the binary data
-      await ctx.reply('📷 Bill photo attached to expense record');
+      await ctx.reply('*Note:* Bill photo attached to expense record', { parse_mode: 'Markdown' });
     }
   }
 }

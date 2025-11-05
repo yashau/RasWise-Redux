@@ -166,7 +166,7 @@ describe('Database', () => {
     });
 
     it('should create an expense', async () => {
-      const expenseId = await db.createExpense({
+      const result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -176,9 +176,10 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      expect(expenseId).toBeGreaterThan(0);
+      expect(result.id).toBeGreaterThan(0);
+      expect(result.group_expense_number).toBe(1);
 
-      const expense = await db.getExpense(expenseId);
+      const expense = await db.getExpense(result.id);
       expect(expense).toBeDefined();
       expect(expense?.amount).toBe(100.50);
       expect(expense?.description).toBe('Dinner');
@@ -237,13 +238,14 @@ describe('Database', () => {
       await db.registerUserInGroup(-100, 111, 111);
       await db.registerUserInGroup(-100, 222, 111);
 
-      expenseId = await db.createExpense({
+      const result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
+      expenseId = result.id;
     });
 
     it('should create expense splits', async () => {
@@ -277,7 +279,7 @@ describe('Database', () => {
     });
 
     it('should return empty array for expense with no splits', async () => {
-      const newExpenseId = await db.createExpense({
+      const newExpenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -285,7 +287,7 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      const splits = await db.getExpenseSplits(newExpenseId);
+      const splits = await db.getExpenseSplits(newExpenseResult.id);
       expect(splits).toEqual([]);
     });
 
@@ -303,13 +305,14 @@ describe('Database', () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
       await db.createUser({ telegram_id: 222, first_name: 'User2' });
 
-      expenseId = await db.createExpense({
+      const result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
+      expenseId = result.id;
 
       await db.createExpenseSplit(expenseId, 222, 50);
       const splits = await db.getExpenseSplits(expenseId);
@@ -337,15 +340,15 @@ describe('Database', () => {
       await db.recordPayment(splitId, 222, 111, 50);
 
       // Create another expense in a different group
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -200,
         created_by: 111,
         paid_by: 111,
         amount: 75,
         split_type: 'equal'
       });
-      await db.createExpenseSplit(expense2, 222, 37.5);
-      const splits2 = await db.getExpenseSplits(expense2);
+      await db.createExpenseSplit(expense2Result.id, 222, 37.5);
+      const splits2 = await db.getExpenseSplits(expense2Result.id);
       await db.recordPayment(splits2[0].id, 222, 111, 37.5);
 
       // Get payments for specific group
@@ -377,15 +380,15 @@ describe('Database', () => {
 
     it('should order payments by paid_at descending', async () => {
       // Create multiple expenses and payments
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 75,
         split_type: 'equal'
       });
-      await db.createExpenseSplit(expense2, 222, 37.5);
-      const splits2 = await db.getExpenseSplits(expense2);
+      await db.createExpenseSplit(expense2Result.id, 222, 37.5);
+      const splits2 = await db.getExpenseSplits(expense2Result.id);
 
       // Record first payment
       await db.recordPayment(splitId, 222, 111, 50);
@@ -413,7 +416,7 @@ describe('Database', () => {
     });
 
     it('should get user summary', async () => {
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -421,7 +424,7 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -429,11 +432,11 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      await db.createExpenseSplit(expense1, 222, 50);
-      await db.createExpenseSplit(expense2, 222, 25);
+      await db.createExpenseSplit(expense1Result.id, 222, 50);
+      await db.createExpenseSplit(expense2Result.id, 222, 25);
 
       // Mark first split as paid
-      const splits = await db.getExpenseSplits(expense1);
+      const splits = await db.getExpenseSplits(expense1Result.id);
       await db.markSplitAsPaid(splits[0].id);
 
       const summary = await db.getUserSummary(222, -100);
@@ -482,7 +485,7 @@ describe('Database', () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
       await db.createUser({ telegram_id: 222, first_name: 'User2' });
 
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -490,7 +493,7 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      await db.createExpenseSplit(expenseId, 222, 50);
+      await db.createExpenseSplit(expenseResult.id, 222, 50);
 
       const groups = await db.getGroupsForReminder();
       expect(groups).toContain(-100);
@@ -522,13 +525,14 @@ describe('Database', () => {
 
     it('should prevent unregistering user with unpaid expenses', async () => {
       // Create an expense that user 222 owes
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
       await db.createExpenseSplit(expenseId, 222, 50);
 
       const result = await db.unregisterUserFromGroup(-100, 222);
@@ -545,13 +549,14 @@ describe('Database', () => {
 
     it('should allow unregistering user after all expenses are paid', async () => {
       // Create and pay an expense
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
       await db.createExpenseSplit(expenseId, 222, 50);
       const splits = await db.getExpenseSplits(expenseId);
       await db.markSplitAsPaid(splits[0].id);
@@ -565,23 +570,23 @@ describe('Database', () => {
 
     it('should prevent unregistering with multiple unpaid expenses', async () => {
       // Create multiple expenses
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
-      await db.createExpenseSplit(expense1, 222, 50);
+      await db.createExpenseSplit(expense1Result.id, 222, 50);
 
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 60,
         split_type: 'equal'
       });
-      await db.createExpenseSplit(expense2, 222, 30);
+      await db.createExpenseSplit(expense2Result.id, 222, 30);
 
       const result = await db.unregisterUserFromGroup(-100, 222);
 
@@ -592,14 +597,14 @@ describe('Database', () => {
 
     it('should only check expenses for the specific group', async () => {
       // Create expense in group -100
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
         amount: 100,
         split_type: 'equal'
       });
-      await db.createExpenseSplit(expense1, 222, 50);
+      await db.createExpenseSplit(expense1Result.id, 222, 50);
 
       // Register user in another group with no expenses
       await db.registerUserInGroup(-200, 222, 111);

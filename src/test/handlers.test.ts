@@ -66,7 +66,7 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should create expense with equal split', async () => {
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -75,6 +75,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
 
       // Create equal splits for 3 users
       await db.createExpenseSplit(expenseId, 111, 100);
@@ -87,7 +88,7 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should create expense with custom split', async () => {
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -96,6 +97,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'custom'
       });
+      const expenseId = expenseResult.id;
 
       // Create custom splits
       await db.createExpenseSplit(expenseId, 111, 150);
@@ -110,7 +112,7 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should track unpaid expenses per user', async () => {
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -118,8 +120,9 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense1 = expense1Result.id;
 
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -100,
         created_by: 222,
         paid_by: 222,
@@ -127,6 +130,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense2 = expense2Result.id;
 
       await db.createExpenseSplit(expense1, 222, 50);
       await db.createExpenseSplit(expense2, 222, 25);
@@ -154,7 +158,7 @@ describe('Handler Integration Tests', () => {
         account_number: '1111111111'
       });
 
-      expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -163,6 +167,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      expenseId = expenseResult.id;
 
       await db.createExpenseSplit(expenseId, 222, 50);
       const splits = await db.getExpenseSplits(expenseId);
@@ -199,7 +204,7 @@ describe('Handler Integration Tests', () => {
 
     it('should calculate accurate summary', async () => {
       // Create multiple expenses
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -207,8 +212,9 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense1 = expense1Result.id;
 
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -216,8 +222,9 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense2 = expense2Result.id;
 
-      const expense3 = await db.createExpense({
+      const expense3Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -225,6 +232,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense3 = expense3Result.id;
 
       await db.createExpenseSplit(expense1, 222, 50);
       await db.createExpenseSplit(expense2, 222, 30);
@@ -269,7 +277,7 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should identify groups with unpaid expenses', async () => {
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -277,6 +285,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
 
       await db.createExpenseSplit(expenseId, 222, 50);
 
@@ -285,7 +294,7 @@ describe('Handler Integration Tests', () => {
     });
 
     it('should not include groups with all paid expenses', async () => {
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -293,6 +302,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
 
       await db.createExpenseSplit(expenseId, 222, 50);
       const splits = await db.getExpenseSplits(expenseId);
@@ -370,7 +380,7 @@ describe('Handler Integration Tests', () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
       await db.createUser({ telegram_id: 222, first_name: 'User2' });
 
-      const expense1 = await db.createExpense({
+      const expense1Result = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -378,8 +388,9 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense1 = expense1Result.id;
 
-      const expense2 = await db.createExpense({
+      const expense2Result = await db.createExpense({
         group_id: -200,
         created_by: 111,
         paid_by: 111,
@@ -387,6 +398,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expense2 = expense2Result.id;
 
       await db.createExpenseSplit(expense1, 222, 50);
       await db.createExpenseSplit(expense2, 222, 25);
@@ -403,7 +415,7 @@ describe('Handler Integration Tests', () => {
     it('should handle zero amount expenses', async () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
 
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -411,6 +423,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
 
       const expense = await db.getExpense(expenseId);
       expect(expense?.amount).toBe(0);
@@ -419,7 +432,7 @@ describe('Handler Integration Tests', () => {
     it('should handle expenses with no description or location', async () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
 
-      const expenseId = await db.createExpense({
+      const expenseResult = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -427,6 +440,7 @@ describe('Handler Integration Tests', () => {
         vendor_payment_slip_url: undefined,
         split_type: 'equal'
       });
+      const expenseId = expenseResult.id;
 
       const expense = await db.getExpense(expenseId);
       expect(expense?.description).toBeNull();

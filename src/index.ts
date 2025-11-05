@@ -73,7 +73,7 @@ export default {
       // Command handlers
       bot.command('start', async (ctx) => {
         await ctx.reply(
-          'Welcome to RasWise Redux! 💰\n\n' +
+          'Welcome to RasWise Redux!\n\n' +
           'I help you split expenses with your friends.\n\n' +
           'Available commands:\n' +
           '/register - Register a user in a group\n' +
@@ -97,28 +97,29 @@ export default {
 
       bot.command('help', async (ctx) => {
         await ctx.reply(
-          '📖 RasWise Redux Help\n\n' +
-          '👥 User Management:\n' +
+          '*RasWise Redux Help*\n\n' +
+          '*User Management:*\n' +
           '/register - Reply to a message to register that user\n' +
           '/listusers - See all registered users in this group\n' +
           '/setpayment - Set/update your bank account\n' +
           '/viewpayment - View your saved payment details\n\n' +
-          '💰 Expense Management:\n' +
+          '*Expense Management:*\n' +
           '/addexpense - Add a new expense to split\n' +
           '/myexpenses - See your pending expenses (DM)\n' +
           '/summary - See your expense summary (DM)\n' +
           '/history - See group expense history (DM)\n\n' +
-          '💸 Payments:\n' +
+          '*Payments:*\n' +
           '/markpaid - Mark an expense as paid\n' +
           '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money (DM)\n\n' +
-          '🔔 Reminders:\n' +
+          '*Reminders:*\n' +
           '/setreminder - Enable/disable daily reminders\n\n' +
-          '🌍 Timezone:\n' +
+          '*Timezone:*\n' +
           '/settimezone - Set group timezone (admin only)\n' +
           '/viewtimezone - View current timezone\n\n' +
           'Group commands work in group chats.\n' +
-          'Personal info is sent via DM for privacy!'
+          'Personal info is sent via DM for privacy!',
+          { parse_mode: 'Markdown' }
         );
       });
 

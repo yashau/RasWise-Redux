@@ -201,7 +201,7 @@ describe('Utility Functions', () => {
 
       await sendDMWithFallback(mockCtx as Context, 123, 'Test message');
 
-      expect(mockCtx.api.sendMessage).toHaveBeenCalledWith(123, 'Test message');
+      expect(mockCtx.api.sendMessage).toHaveBeenCalledWith(123, 'Test message', { parse_mode: 'Markdown' });
       expect(mockCtx.reply).not.toHaveBeenCalled();
     });
 
@@ -210,9 +210,10 @@ describe('Utility Functions', () => {
 
       await sendDMWithFallback(mockCtx as Context, 123, 'Test message');
 
-      expect(mockCtx.api.sendMessage).toHaveBeenCalledWith(123, 'Test message');
+      expect(mockCtx.api.sendMessage).toHaveBeenCalledWith(123, 'Test message', { parse_mode: 'Markdown' });
       expect(mockCtx.reply).toHaveBeenCalledWith(
-        '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
+        '*Error:* I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".',
+        { parse_mode: 'Markdown' }
       );
     });
   });

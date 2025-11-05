@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS group_users (
 CREATE TABLE IF NOT EXISTS expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id INTEGER NOT NULL,
+    group_expense_number INTEGER, -- per-group expense numbering
     created_by INTEGER NOT NULL,
     paid_by INTEGER NOT NULL, -- who paid the full amount
     amount REAL NOT NULL,
@@ -88,6 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_payment_details_user ON payment_details(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_users_group ON group_users(group_id);
 CREATE INDEX IF NOT EXISTS idx_group_users_user ON group_users(user_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_group ON expenses(group_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_group_number ON expenses(group_id, group_expense_number);
 CREATE INDEX IF NOT EXISTS idx_expense_splits_expense ON expense_splits(expense_id);
 CREATE INDEX IF NOT EXISTS idx_expense_splits_user ON expense_splits(user_id);
 CREATE INDEX IF NOT EXISTS idx_expense_splits_unpaid ON expense_splits(paid) WHERE paid = 0;

@@ -38,7 +38,7 @@ export async function sendReminders(db: Database, botToken: string) {
         const totalOwed = unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0);
 
         const message =
-          `🔔 Daily Reminder\n\n` +
+          `*Daily Reminder*\n\n` +
           `You have ${unpaidSplits.length} pending expense${unpaidSplits.length > 1 ? 's' : ''}\n` +
           `Total owed: ${formatAmount(totalOwed)}\n\n` +
           `Use /myexpenses to see details\n` +
@@ -51,7 +51,8 @@ export async function sendReminders(db: Database, botToken: string) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: user.telegram_id,
-              text: message
+              text: message,
+              parse_mode: 'Markdown'
             })
           });
         } catch (error) {
@@ -81,12 +82,13 @@ export async function handleSetReminder(ctx: Context, db: Database) {
 
   if (currentSettings && currentSettings.enabled === 1) {
     await db.setReminderSettings(groupId, false, currentSettings.reminder_time || '10:00');
-    await ctx.reply('🔕 Daily reminders have been disabled for this group.');
+    await ctx.reply('*Status:* Daily reminders have been disabled for this group.', { parse_mode: 'Markdown' });
   } else {
     await db.setReminderSettings(groupId, true, currentSettings?.reminder_time || '10:00');
     await ctx.reply(
-      '🔔 Daily reminders have been enabled for this group!\n\n' +
-      'Users with pending expenses will receive a daily DM reminder.'
+      '*Status:* Daily reminders have been enabled for this group!\n\n' +
+      'Users with pending expenses will receive a daily DM reminder.',
+      { parse_mode: 'Markdown' }
     );
   }
 }
@@ -102,8 +104,9 @@ export async function handleReminderStatus(ctx: Context, db: Database) {
 
   if (!settings || settings.enabled === 0) {
     await ctx.reply(
-      '🔕 Daily reminders are currently disabled.\n\n' +
-      'Use /setreminder to enable them.'
+      '*Status:* Daily reminders are currently disabled.\n\n' +
+      'Use /setreminder to enable them.',
+      { parse_mode: 'Markdown' }
     );
   } else {
     const lastSent = settings.last_reminder_sent
@@ -111,9 +114,10 @@ export async function handleReminderStatus(ctx: Context, db: Database) {
       : 'Never';
 
     await ctx.reply(
-      '🔔 Daily reminders are enabled\n\n' +
+      '*Status:* Daily reminders are enabled\n\n' +
       `Last sent: ${lastSent}\n\n` +
-      'Use /setreminder to disable'
+      'Use /setreminder to disable',
+      { parse_mode: 'Markdown' }
     );
   }
 }
@@ -126,7 +130,7 @@ export async function handleSetTimezone(ctx: Context, db: Database, kv: KVNamesp
   // Check if user is admin
   const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
   if (member.status !== 'creator' && member.status !== 'administrator') {
-    return ctx.reply('❌ Only group admins can set the timezone.');
+    return ctx.reply('*Error:* Only group admins can set the timezone.', { parse_mode: 'Markdown' });
   }
 
   const groupId = ctx.chat.id;
@@ -142,14 +146,15 @@ export async function handleSetTimezone(ctx: Context, db: Database, kv: KVNamesp
   await saveSession(kv, sessionKey, session);
 
   await ctx.reply(
-    '🌍 Set Group Timezone\n\n' +
+    '*Set Group Timezone*\n\n' +
     'Please enter the timezone offset from UTC.\n\n' +
     'Examples:\n' +
     '+5 for Maldives\n' +
     '-5 for Eastern US\n' +
     '+0 for UTC\n' +
     '+8 for Singapore\n\n' +
-    'Just send the number (like +5 or -5)'
+    'Just send the number (like +5 or -5)',
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -157,7 +162,7 @@ export async function handleTimezoneInfo(ctx: Context, db: Database, kv: KVNames
   const text = ctx.message?.text;
 
   if (!text) {
-    return ctx.reply('❌ Please send a valid timezone offset (e.g., +5.5 or -5)');
+    return ctx.reply('*Error:* Please send a valid timezone offset (e.g., +5.5 or -5)', { parse_mode: 'Markdown' });
   }
 
   // Parse timezone offset
@@ -165,8 +170,9 @@ export async function handleTimezoneInfo(ctx: Context, db: Database, kv: KVNames
 
   if (isNaN(offset) || offset < -12 || offset > 14) {
     return ctx.reply(
-      '❌ Invalid timezone offset. Please enter a number between -12 and +14\n\n' +
-      'Examples: +5.5, -5, +8, +0'
+      '*Error:* Invalid timezone offset. Please enter a number between -12 and +14\n\n' +
+      'Examples: +5.5, -5, +8, +0',
+      { parse_mode: 'Markdown' }
     );
   }
 
@@ -179,8 +185,9 @@ export async function handleTimezoneInfo(ctx: Context, db: Database, kv: KVNames
 
   const sign = offset >= 0 ? '+' : '';
   await ctx.reply(
-    `✅ Timezone set to UTC${sign}${offset}\n\n` +
-    'All dates in this group will now be displayed in this timezone.'
+    `*Success:* Timezone set to UTC${sign}${offset}\n\n` +
+    'All dates in this group will now be displayed in this timezone.',
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -194,7 +201,8 @@ export async function handleViewTimezone(ctx: Context, db: Database) {
 
   const sign = offset >= 0 ? '+' : '';
   await ctx.reply(
-    `🌍 Current Group Timezone: UTC${sign}${offset}\n\n` +
-    'To change the timezone, use /settimezone (admin only)'
+    `*Current Group Timezone:* UTC${sign}${offset}\n\n` +
+    'To change the timezone, use /settimezone (admin only)',
+    { parse_mode: 'Markdown' }
   );
 }

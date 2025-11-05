@@ -1,4 +1,4 @@
-# RasWise Redux 💰
+# RasWise Redux
 
 A Telegram bot for splitting expenses among group members, built on Cloudflare Workers.
 
@@ -111,15 +111,15 @@ Displays two sections in your DM:
 
 **Section A: Pending Expenses**
 ```
-📊 Your Pending Expenses:
+*Your Pending Expenses:*
 
-💰 Expense #123
+*Expense #123*
 Total amount: 300.00
 Amount you owe: 100.00
 Description: Team lunch
 Location: Pizza Place
-📷 Bill photo attached
-🧾 Vendor payment slip attached
+Bill photo: [View]
+Vendor slip: [View]
 Fronted by: Alice
 Date: 2025/01/15
 
@@ -130,14 +130,14 @@ Total pending: 100.00
 ```
 ━━━━━━━━━━━━━━━━
 
-💳 Your Payment History:
+*Your Payment History:*
 
-✅ Payment #45
+*Payment #45*
 Amount paid: 50.00
 Paid to: John
 For: Coffee supplies
 Location: Starbucks
-📷 Transfer slip attached
+Transfer slip: [View]
 Date: 2025/01/14
 
 Total paid: 50.00
@@ -163,7 +163,7 @@ Step 3: Make Payment
 ├─ Use your banking app to transfer money
 │
 Step 4: Confirm Payment
-├─ Click "✅ I've Paid This"
+├─ Click "I've Paid This"
 │
 Step 5: Upload Transfer Slip (Optional)
 ├─ Upload a photo of your bank transfer receipt
@@ -181,17 +181,20 @@ Step 6: Confirmation
 
 Displays recent expenses in your DM:
 ```
-📚 Recent Expense History:
+*Recent Expense History:*
 
-💰 #123 - 300.00
-   Team lunch
-   📷 Bill | 🧾 Vendor slip
+*Expense #123*
+   Amount: 300.00
+   Description: Team lunch
+   Bill photo: [View]
+   Vendor slip: [View]
    By: Alice | 2025/01/15
    Split: equal among 3 user(s)
    Status: 2/2 paid
 
-💰 #122 - 150.00
-   Office supplies
+*Expense #122*
+   Amount: 150.00
+   Description: Office supplies
    By: Bob | 2025/01/14
    Split: custom among 2 user(s)
    Status: 1/2 paid
@@ -203,13 +206,13 @@ Displays recent expenses in your DM:
 
 Shows cumulative statistics in your DM:
 ```
-📊 Your Expense Summary:
+*Your Expense Summary:*
 
-💸 Total Unpaid: 150.00
-✅ Total Paid: 300.00
-📝 Pending Expenses: 3
+*Total Unpaid:* 150.00
+*Total Paid:* 300.00
+*Pending Expenses:* 3
 
-💰 You owe:
+*You owe:*
   • Alice: 100.00 (2 expenses)
   • Bob: 50.00 (1 expense)
 ```
@@ -220,12 +223,12 @@ Shows cumulative statistics in your DM:
 
 Shows money owed to you (sent via DM):
 ```
-💰 Payments Owed to You:
+*Payments Owed to You:*
 
 Total Pending: 200.00
 Total Received: 500.00
 
-📋 Breakdown:
+*Breakdown:*
 
 Bob:
   Amount: 100.00
@@ -242,10 +245,15 @@ If enabled with `/setreminder`:
 ```
 Daily at 10:00 AM UTC:
 ├─ Bot checks for groups with unpaid expenses
-├─ Sends reminder to each group:
+├─ Sends reminder to each user with unpaid expenses:
 │
-"🔔 Reminder: There are pending expenses to be paid.
-Use /myexpenses to view your pending expenses."
+"*Daily Reminder*
+
+You have 2 pending expenses
+Total owed: 175.00
+
+Use /myexpenses to see details
+Use /markpaid to mark as paid"
 ```
 
 ## Setup Instructions
@@ -666,7 +674,7 @@ Result:
 
 **Bot**:
 ```
-Welcome to RasWise Redux! 💰
+Welcome to RasWise Redux!
 
 I help you split expenses with your friends.
 
@@ -697,7 +705,7 @@ Available commands:
 
 **Bot**:
 ```
-✅ Alice has been registered in this group!
+*Success:* Alice has been registered in this group!
 ```
 
 ### Setting Payment Details
@@ -713,11 +721,11 @@ Please send your bank account number:
 
 **Bot**:
 ```
-✅ Your payment details have been saved!
+*Success:* Your payment details have been saved!
 
-Account Number: 1234567890
+Bank Account: 1234567890
 
-You can update these anytime with /setpayment
+You can update this anytime with /setpayment
 ```
 
 ### Adding an Expense (Full Flow)
@@ -801,13 +809,13 @@ Step 8: How should the bill be split?
 
 **Bot**:
 ```
-✅ Expense added successfully!
+*Success:* Expense added successfully!
 
-💰 Total Amount: 300
-💳 Paid by: Alice
-📝 Description: Team lunch at Pizza Place
+*Total Amount:* 300.00
+*Paid by:* Alice
+*Description:* Team lunch at Pizza Place
 
-👥 To be paid by 2 user(s):
+*To be paid by 2 user(s):*
   • Bob: 150.00
   • Charlie: 150.00
 
@@ -818,21 +826,16 @@ Expense ID: #123
 
 **User** (in group): `/myexpenses`
 
-**Bot** (in group):
-```
-📊 I'll send you your expense details in a DM!
-```
-
 **Bot** (in DM to user):
 ```
-📊 Your Pending Expenses:
+*Your Pending Expenses:*
 
-💰 Expense #123
+*Expense #123*
 Total amount: 300.00
 Amount you owe: 150.00
 Description: Team lunch at Pizza Place
-📷 Bill photo attached
-🧾 Vendor payment slip attached
+Bill photo: [View]
+Vendor slip: [View]
 Fronted by: Alice
 Date: 2025/01/15
 
@@ -848,9 +851,9 @@ Use /markpaid to mark expenses as paid
 
 **Bot** (in DM, showing both sections):
 ```
-📊 Your Pending Expenses:
+*Your Pending Expenses:*
 
-💰 Expense #124
+*Expense #124*
 Total amount: 50.00
 Amount you owe: 25.00
 Description: Coffee supplies
@@ -861,13 +864,13 @@ Total pending: 25.00
 
 ━━━━━━━━━━━━━━━━
 
-💳 Your Payment History:
+*Your Payment History:*
 
-✅ Payment #42
+*Payment #42*
 Amount paid: 150.00
 Paid to: Alice
 For: Team lunch at Pizza Place
-📷 Transfer slip attached
+Transfer slip: [View]
 Date: 2025/01/15
 
 Total paid: 150.00
@@ -882,7 +885,7 @@ Use /markpaid to mark expenses as paid
 
 **Bot**:
 ```
-💸 Select an expense to mark as paid:
+Select an expense to mark as paid:
 
 [#124 - 25.00 (Coffee supplies)]
 
@@ -894,7 +897,7 @@ Use /myexpenses to see all.
 
 **Bot**:
 ```
-💸 Payment Details for Expense #124:
+*Payment Details for Expense #124:*
 
 Amount to pay: 25.00
 For: Coffee supplies
@@ -904,15 +907,15 @@ Bank Account: 9876543210
 
 Once you've paid, click the button below to mark as paid.
 
-[✅ I've Paid This]
-[❌ Cancel]
+[I've Paid This]
+[Cancel]
 ```
 
 **User**: _transfers money and clicks "I've Paid This"_
 
 **Bot**:
 ```
-📷 Would you like to upload a bank transfer slip as proof of payment?
+Would you like to upload a bank transfer slip as proof of payment?
 
 You can send a photo now, or click Skip to mark as paid without a receipt.
 
@@ -923,46 +926,41 @@ You can send a photo now, or click Skip to mark as paid without a receipt.
 
 **Bot**:
 ```
-✅ Payment marked as complete!
+*Success:* Payment marked as complete!
 
 Expense #124
 Amount: 25.00
 Description: Coffee supplies
 
-📷 Transfer slip uploaded
+Transfer slip uploaded
 
 The person who paid has been notified.
 ```
 
 **Bot** (notification to Dave):
 ```
-✅ Bob marked their payment as paid!
+*Success:* Bob marked their payment as paid!
 
 Expense #124
 Amount: 25.00
 Description: Coffee supplies
 
-📷 Transfer slip attached
+Transfer slip: [View]
 ```
 
 ### Viewing Summary
 
 **User** (in group): `/summary`
 
-**Bot** (in group):
-```
-📊 I'll send you your summary in a DM!
-```
-
 **Bot** (in DM):
 ```
-📊 Your Expense Summary:
+*Your Expense Summary:*
 
-💸 Total Unpaid: 75.00
-✅ Total Paid: 150.00
-📝 Pending Expenses: 2
+*Total Unpaid:* 75.00
+*Total Paid:* 150.00
+*Pending Expenses:* 2
 
-💰 You owe:
+*You owe:*
   • Alice: 50.00 (1 expense)
   • Dave: 25.00 (1 expense)
 
@@ -974,19 +972,14 @@ Use /markpaid to mark expenses as paid
 
 **User** (in group): `/owed`
 
-**Bot** (in group):
-```
-💳 I'll send you payment details in a DM!
-```
-
 **Bot** (in DM):
 ```
-💰 Payments Owed to You:
+*Payments Owed to You:*
 
 Total Pending: 300.00
 Total Received: 150.00
 
-📋 Breakdown:
+*Breakdown:*
 
 Bob:
   Amount: 150.00
@@ -1001,30 +994,29 @@ Charlie:
 
 **User** (in group): `/history`
 
-**Bot** (in group):
-```
-📚 I'll send you the expense history in a DM!
-```
-
 **Bot** (in DM):
 ```
-📚 Recent Expense History:
+*Recent Expense History:*
 
-💰 #125 - 80.00
-   Uber ride home
+*Expense #125*
+   Amount: 80.00
+   Description: Uber ride home
    By: Charlie | 2025/01/17
    Split: equal among 4 user(s)
    Status: 3/3 paid
 
-💰 #124 - 50.00
-   Coffee supplies
+*Expense #124*
+   Amount: 50.00
+   Description: Coffee supplies
    By: Dave | 2025/01/16
    Split: equal among 2 user(s)
    Status: 2/2 paid
 
-💰 #123 - 300.00
-   Team lunch at Pizza Place
-   📷 Bill | 🧾 Vendor slip
+*Expense #123*
+   Amount: 300.00
+   Description: Team lunch at Pizza Place
+   Bill photo: [View]
+   Vendor slip: [View]
    By: Alice | 2025/01/15
    Split: equal among 3 user(s)
    Status: 2/2 paid
@@ -1038,14 +1030,12 @@ Showing last 3 expenses
 
 **Bot**:
 ```
-👥 Registered Users in This Group:
+*Registered Users (4):*
 
-1. Alice (@alice)
-2. Bob (@bob_smith)
-3. Charlie (@charlie_123)
+1. Alice
+2. Bob
+3. Charlie
 4. Dave
-
-Total: 4 users
 ```
 
 ### Setting Reminders
@@ -1054,27 +1044,23 @@ Total: 4 users
 
 **Bot**:
 ```
-🔔 Daily reminders are now ENABLED for this group.
+*Status:* Daily reminders have been enabled for this group!
 
-The bot will send a reminder each day at 10:00 AM UTC if there are pending expenses.
-
-Use /setreminder again to disable.
+Users with pending expenses will receive a daily DM reminder.
 ```
 
 **User**: `/setreminder` (again)
 
 **Bot**:
 ```
-🔕 Daily reminders are now DISABLED for this group.
-
-Use /setreminder again to enable.
+*Status:* Daily reminders have been disabled for this group.
 ```
 
 ### Daily Reminder (Automatic)
 
 **Bot** (at 10:00 AM UTC, if reminders enabled):
 ```
-🔔 Daily Reminder
+*Daily Reminder*
 
 You have 2 pending expenses
 Total owed: 175.00
@@ -1091,14 +1077,14 @@ Use /markpaid to mark as paid
 
 **Bot** (if user has pending expenses):
 ```
-❌ Cannot unregister user. They have 2 unpaid expense(s) totaling 150.00.
+*Error:* Cannot unregister user. They have 2 unpaid expense(s) totaling 150.00.
 ```
 
 **Admin** (after Bob pays all expenses, replies to Bob): `/unregister`
 
 **Bot**:
 ```
-✅ Bob has been unregistered from this group.
+*Success:* Bob has been unregistered from this group.
 ```
 
 **Method 2: Using @username**
@@ -1107,7 +1093,7 @@ Use /markpaid to mark as paid
 
 **Bot**:
 ```
-✅ Bob has been unregistered from this group.
+*Success:* Bob has been unregistered from this group.
 ```
 
 **Method 3: Using plain username (works even if user left the group)**
@@ -1116,14 +1102,14 @@ Use /markpaid to mark as paid
 
 **Bot**:
 ```
-✅ Bob has been unregistered from this group.
+*Success:* Bob has been unregistered from this group.
 ```
 
 **Admin**: `/unregister @alice`
 
 **Bot** (if username not found):
 ```
-❌ User @alice is not registered in this group.
+*Error:* User @alice is not registered in this group.
 ```
 
 ### Setting Group Timezone (Admin Only)
@@ -1132,7 +1118,7 @@ Use /markpaid to mark as paid
 
 **Bot**:
 ```
-🌍 Set Group Timezone
+*Set Group Timezone*
 
 Please enter the timezone offset from UTC.
 
@@ -1149,7 +1135,7 @@ Just send the number (like +5 or -5)
 
 **Bot**:
 ```
-✅ Timezone set to UTC+5
+*Success:* Timezone set to UTC+5
 
 All dates in this group will now be displayed in this timezone.
 ```
@@ -1160,7 +1146,7 @@ All dates in this group will now be displayed in this timezone.
 
 **Bot**:
 ```
-🌍 Current Group Timezone: UTC+5
+*Current Group Timezone:* UTC+5
 
 To change the timezone, use /settimezone (admin only)
 ```
@@ -1171,7 +1157,7 @@ To change the timezone, use /settimezone (admin only)
 
 **Bot**:
 ```
-💸 Select an expense to mark as paid for Bob:
+Select an expense to mark as paid for Bob:
 
 [#123 - 150.00 (Team lunch at Piz...)]
 [#124 - 25.00 (Coffee supplies)]
@@ -1183,7 +1169,7 @@ Showing 2 of 2 pending expenses.
 
 **Bot** (in group):
 ```
-✅ Payment marked as complete for Bob!
+*Success:* Payment marked as complete for Bob!
 
 Expense #123
 Amount: 150.00
@@ -1192,7 +1178,7 @@ Description: Team lunch at Pizza Place
 
 **Bot** (DM to Alice, who fronted the money):
 ```
-✅ Admin Charlie marked Bob's payment as paid!
+*Success:* Admin Charlie marked Bob's payment as paid!
 
 Expense #123
 Amount: 150.00
@@ -1201,7 +1187,7 @@ Description: Team lunch at Pizza Place
 
 **Bot** (DM to Bob):
 ```
-✅ Admin marked your payment as complete!
+*Success:* Admin marked your payment as complete!
 
 Expense #123
 Amount: 150.00
@@ -1212,24 +1198,24 @@ Description: Team lunch at Pizza Place
 
 **User tries to add expense without registration**:
 ```
-❌ You must be registered in this group first.
+*Error:* You must be registered in this group first.
 Ask a group admin to reply to one of your messages with /register
 ```
 
 **User tries to mark paid when person hasn't set payment details**:
 ```
-⚠️ The person who paid this expense hasn't set up payment details yet.
+*Error:* The person who paid this expense hasn't set up payment details yet.
 Ask them to use /setpayment to add their payment information.
 ```
 
 **Session expires**:
 ```
-⏱️ Your session has expired. Please start over with /addexpense
+Session expired
 ```
 
 **Bot can't send DM**:
 ```
-❌ I couldn't send you a DM. Please start a chat with me first by clicking my name and pressing "Start".
+*Error:* I couldn't send you a DM. Please start a chat with me first by clicking my name and pressing "Start".
 ```
 
 ## Troubleshooting
@@ -1285,4 +1271,4 @@ For questions and discussions, use GitHub Discussions.
 
 ---
 
-Made with ❤️ using Cloudflare Workers
+Made with Cloudflare Workers

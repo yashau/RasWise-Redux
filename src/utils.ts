@@ -66,7 +66,8 @@ export async function sendDMWithFallback(
     await ctx.api.sendMessage(userId, message, { parse_mode: parseMode });
   } catch (error) {
     await ctx.reply(
-      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
+      '*Error:* I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".',
+      { parse_mode: 'Markdown' }
     );
   }
 }

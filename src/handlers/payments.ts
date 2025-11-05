@@ -15,7 +15,7 @@ export async function handleMarkPaid(ctx: Context, db: Database) {
   const unpaidSplits = await db.getUserUnpaidSplits(userId, groupId);
 
   if (unpaidSplits.length === 0) {
-    return ctx.reply('🎉 You have no pending expenses to mark as paid!');
+    return ctx.reply('*Great news:* You have no pending expenses to mark as paid!', { parse_mode: 'Markdown' });
   }
 
   // Create inline keyboard with expenses
@@ -27,14 +27,14 @@ export async function handleMarkPaid(ctx: Context, db: Database) {
     keyboard.text(label, `markpaid:${split.id}`).row();
   }
 
-  let message = '💸 Select an expense to mark as paid:\n\n';
+  let message = '*Select an expense to mark as paid:*\n\n';
 
   if (unpaidSplits.length > 10) {
     message += `Showing 10 of ${unpaidSplits.length} pending expenses.\n`;
     message += 'Use /myexpenses to see all.\n\n';
   }
 
-  await ctx.reply(message, { reply_markup: keyboard });
+  await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
 export async function handleMarkPaidCallback(
@@ -63,8 +63,9 @@ export async function handleMarkPaidCallback(
   if (!payerPayment) {
     await ctx.answerCallbackQuery();
     return ctx.reply(
-      '⚠️ The person who paid this expense hasn\'t set up payment details yet.\n' +
-      'Ask them to use /setpayment to add their payment information.'
+      '*Warning:* The person who paid this expense hasn\'t set up payment details yet.\n' +
+      'Ask them to use /setpayment to add their payment information.',
+      { parse_mode: 'Markdown' }
     );
   }
 
@@ -72,7 +73,7 @@ export async function handleMarkPaidCallback(
   const payer = await db.getUser(expense.paid_by);
   const payerName = formatUserName(payer, expense.paid_by);
 
-  let message = `💸 Payment Details for Expense #${expense.id}:\n\n`;
+  let message = `*Payment Details for Expense #${expense.id}:*\n\n`;
   message += `Amount to pay: ${formatAmount(split.amount_owed)}\n`;
   if (expense.description) message += `For: ${expense.description}\n`;
   message += `\nPay to: ${payerName}\n`;
@@ -80,12 +81,12 @@ export async function handleMarkPaidCallback(
   message += `Once you've paid, click the button below to mark as paid.`;
 
   const keyboard = new InlineKeyboard()
-    .text('✅ I\'ve Paid This', `confirmpaid:${splitId}`)
+    .text('I\'ve Paid This', `confirmpaid:${splitId}`)
     .row()
-    .text('❌ Cancel', 'cancel_payment');
+    .text('Cancel', 'cancel_payment');
 
   await ctx.answerCallbackQuery();
-  await ctx.reply(message, { reply_markup: keyboard });
+  await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
 export async function handleConfirmPaid(
@@ -120,9 +121,9 @@ export async function handleConfirmPaid(
 
   await ctx.answerCallbackQuery();
   await ctx.reply(
-    '📷 Would you like to upload a bank transfer slip as proof of payment?\n\n' +
+    '*Transfer Slip:* Would you like to upload a bank transfer slip as proof of payment?\n\n' +
     'You can send a photo now, or click Skip to mark as paid without a receipt.',
-    { reply_markup: keyboard }
+    { reply_markup: keyboard, parse_mode: 'Markdown' }
   );
 }
 
@@ -233,27 +234,28 @@ async function completePayment(
   const payingUserName = formatUserName(payingUser, userId);
 
   try {
-    let notificationMsg = `✅ ${payingUserName} marked their payment as paid!\n\n` +
+    let notificationMsg = `*Success:* ${payingUserName} marked their payment as paid!\n\n` +
       `Expense #${expense.id}\n` +
       `Amount: ${formatAmount(split.amount_owed)}\n` +
       (expense.description ? `Description: ${expense.description}\n` : '');
 
     if (transferSlipUrl) {
-      notificationMsg += '\n📷 Transfer slip attached';
+      notificationMsg += '\n*Transfer slip attached*';
     }
 
-    await ctx.api.sendMessage(expense.paid_by, notificationMsg);
+    await ctx.api.sendMessage(expense.paid_by, notificationMsg, { parse_mode: 'Markdown' });
   } catch (error) {
     // Payer hasn't started the bot, that's okay
   }
 
   await ctx.reply(
-    `✅ Payment marked as complete!\n\n` +
+    `*Success:* Payment marked as complete!\n\n` +
     `Expense #${expense.id}\n` +
     `Amount: ${split.amount_owed.toFixed(2)}\n` +
     (expense.description ? `Description: ${expense.description}\n` : '') +
-    (transferSlipUrl ? '\n📷 Transfer slip uploaded' : '') +
-    `\n\nThe person who paid has been notified.`
+    (transferSlipUrl ? '\n*Transfer slip uploaded*' : '') +
+    `\n\nThe person who paid has been notified.`,
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -270,19 +272,20 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
   // Check if user is admin
   const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
   if (member.status !== 'creator' && member.status !== 'administrator') {
-    return ctx.reply('❌ Only group admins can mark payments on behalf of users.');
+    return ctx.reply('*Error:* Only group admins can mark payments on behalf of users.', { parse_mode: 'Markdown' });
   }
 
   // Check if replying to a message
   if (!ctx.message?.reply_to_message) {
     return ctx.reply(
-      '❌ Please reply to the user\'s message whose payment you want to mark as paid with /adminmarkpaid'
+      '*Error:* Please reply to the user\'s message whose payment you want to mark as paid with /adminmarkpaid',
+      { parse_mode: 'Markdown' }
     );
   }
 
   const targetUser = ctx.message.reply_to_message.from;
   if (!targetUser) {
-    return ctx.reply('❌ Could not identify the user.');
+    return ctx.reply('*Error:* Could not identify the user.', { parse_mode: 'Markdown' });
   }
 
   const groupId = ctx.chat.id;
@@ -300,7 +303,7 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
       created_at: Date.now()
     }, targetUserId);
 
-    return ctx.reply(`🎉 ${targetName} has no pending expenses to mark as paid!`);
+    return ctx.reply(`*Great news:* ${targetName} has no pending expenses to mark as paid!`, { parse_mode: 'Markdown' });
   }
 
   // Create inline keyboard with expenses
@@ -312,13 +315,13 @@ export async function handleAdminMarkPaid(ctx: Context, db: Database) {
     keyboard.text(label, `adminmarkpaid:${split.id}:${targetUserId}`).row();
   }
 
-  let message = `💸 Select an expense to mark as paid for ${targetUser.first_name}:\n\n`;
+  let message = `*Select an expense to mark as paid for ${targetUser.first_name}:*\n\n`;
 
   if (unpaidSplits.length > 10) {
     message += `Showing 10 of ${unpaidSplits.length} pending expenses.\n`;
   }
 
-  await ctx.reply(message, { reply_markup: keyboard });
+  await ctx.reply(message, { reply_markup: keyboard, parse_mode: 'Markdown' });
 }
 
 export async function handleAdminMarkPaidCallback(
@@ -370,33 +373,34 @@ export async function handleAdminMarkPaidCallback(
     const adminUser = await db.getUser(ctx.from!.id);
     const adminName = formatUserName(adminUser, ctx.from!.id);
 
-    let notificationMsg = `✅ Admin ${adminName} marked ${targetName}'s payment as paid!\n\n` +
+    let notificationMsg = `*Success:* Admin ${adminName} marked ${targetName}'s payment as paid!\n\n` +
       `Expense #${expense.id}\n` +
       `Amount: ${formatAmount(split.amount_owed)}\n` +
       (expense.description ? `Description: ${expense.description}\n` : '');
 
-    await ctx.api.sendMessage(expense.paid_by, notificationMsg);
+    await ctx.api.sendMessage(expense.paid_by, notificationMsg, { parse_mode: 'Markdown' });
   } catch (error) {
     // Payer hasn't started the bot, that's okay
   }
 
   // Notify the user whose payment was marked
   try {
-    let userNotificationMsg = `✅ Admin marked your payment as complete!\n\n` +
+    let userNotificationMsg = `*Success:* Admin marked your payment as complete!\n\n` +
       `Expense #${expense.id}\n` +
       `Amount: ${formatAmount(split.amount_owed)}\n` +
       (expense.description ? `Description: ${expense.description}\n` : '');
 
-    await ctx.api.sendMessage(targetUserId, userNotificationMsg);
+    await ctx.api.sendMessage(targetUserId, userNotificationMsg, { parse_mode: 'Markdown' });
   } catch (error) {
     // User hasn't started the bot, that's okay
   }
 
   await ctx.reply(
-    `✅ Payment marked as complete for ${targetName}!\n\n` +
+    `*Success:* Payment marked as complete for ${targetName}!\n\n` +
     `Expense #${expense.id}\n` +
     `Amount: ${formatAmount(split.amount_owed)}\n` +
-    (expense.description ? `Description: ${expense.description}` : '')
+    (expense.description ? `Description: ${expense.description}` : ''),
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -407,7 +411,7 @@ export async function handleViewPayments(ctx: Context, db: Database) {
 
   if (ctx.chat?.type !== 'private') {
     groupId = ctx.chat!.id;
-    await ctx.reply('💳 I\'ll send you payment details in a DM!');
+    await ctx.reply('*Note:* I\'ll send you payment details in a DM!', { parse_mode: 'Markdown' });
   }
 
   // This shows who owes you money
@@ -444,19 +448,19 @@ export async function handleViewPayments(ctx: Context, db: Database) {
     }
   }
 
-  let message = '💰 Payments Owed to You:\n\n';
+  let message = '*Payments Owed to You:*\n\n';
   message += `Total Pending: ${formatAmount(totalOwed)}\n`;
   message += `Total Received: ${formatAmount(totalPaid)}\n\n`;
 
   if (Object.keys(oweByPerson).length > 0) {
-    message += '📋 Breakdown:\n';
+    message += '*Breakdown:*\n';
     for (const [personId, info] of Object.entries(oweByPerson)) {
       message += `\n${info.name}:\n`;
       message += `  Amount: ${formatAmount(info.amount)}\n`;
       message += `  Expenses: ${info.expenses.map(id => `#${id}`).join(', ')}\n`;
     }
   } else {
-    message += '✅ Everyone has paid you!';
+    message += '*Great news:* Everyone has paid you!';
   }
 
   await sendDMWithFallback(ctx, userId, message);

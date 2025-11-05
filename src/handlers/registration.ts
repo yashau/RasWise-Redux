@@ -37,7 +37,8 @@ export async function handleRegister(ctx: Context, db: Database) {
   const user = await db.getUser(targetUser.id);
   const name = formatUserName(user, targetUser.id);
   await ctx.reply(
-    `✅ ${name} has been registered in this group!`
+    `*Success:* ${name} has been registered in this group!`,
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -53,7 +54,7 @@ export async function handleSetPayment(ctx: Context, db: Database, kv: KVNamespa
   await saveSession(kv, `payment_session:${userId}`, session, 300);
 
   await ctx.reply(
-    '💳 Let\'s set up your payment details.\n\n' +
+    'Let\'s set up your payment details.\n\n' +
     'Please send your bank account number:'
   );
 }
@@ -88,9 +89,10 @@ export async function handlePaymentInfo(ctx: Context, db: Database, kv: KVNamesp
   await kv.delete(sessionKey);
 
   await ctx.reply(
-    '✅ Your payment details have been saved!\n\n' +
+    '*Success:* Your payment details have been saved!\n\n' +
     `Bank Account: ${paymentInfo}\n\n` +
-    'You can update this anytime with /setpayment'
+    'You can update this anytime with /setpayment',
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -107,9 +109,10 @@ export async function handleViewPayment(ctx: Context, db: Database) {
 
   const info = JSON.parse(paymentDetail.payment_info);
   await ctx.reply(
-    '💳 Your Payment Details:\n\n' +
+    '*Your Payment Details:*\n\n' +
     `Bank Account: ${info.account_number}\n\n` +
-    'Use /setpayment to update this.'
+    'Use /setpayment to update this.',
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -134,7 +137,8 @@ export async function handleListUsers(ctx: Context, db: Database) {
   }).join('\n');
 
   await ctx.reply(
-    `👥 Registered Users (${users.length}):\n\n${userList}`
+    `*Registered Users (${users.length}):*\n\n${userList}`,
+    { parse_mode: 'Markdown' }
   );
 }
 
@@ -146,7 +150,7 @@ export async function handleUnregister(ctx: Context, db: Database) {
   // Check if user is admin
   const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
   if (member.status !== 'creator' && member.status !== 'administrator') {
-    return ctx.reply('❌ Only group admins can unregister users.');
+    return ctx.reply('*Error:* Only group admins can unregister users.', { parse_mode: 'Markdown' });
   }
 
   const groupId = ctx.chat.id;
@@ -159,7 +163,7 @@ export async function handleUnregister(ctx: Context, db: Database) {
   if (ctx.message?.reply_to_message) {
     const targetUser = ctx.message.reply_to_message.from;
     if (!targetUser) {
-      return ctx.reply('❌ Could not identify the user to unregister.');
+      return ctx.reply('*Error:* Could not identify the user to unregister.', { parse_mode: 'Markdown' });
     }
     targetUserId = targetUser.id;
     targetUsername = targetUser.username;
@@ -172,10 +176,11 @@ export async function handleUnregister(ctx: Context, db: Database) {
 
     if (parts.length < 2) {
       return ctx.reply(
-        '❌ Please either:\n' +
+        '*Error:* Please either:\n' +
         '• Reply to the user\'s message with /unregister\n' +
         '• Use /unregister @username\n' +
-        '• Use /unregister username'
+        '• Use /unregister username',
+        { parse_mode: 'Markdown' }
       );
     }
 
@@ -186,7 +191,7 @@ export async function handleUnregister(ctx: Context, db: Database) {
     const targetUser = groupUsers.find(u => u.username?.toLowerCase() === username.toLowerCase());
 
     if (!targetUser) {
-      return ctx.reply(`❌ User @${username} is not registered in this group.`);
+      return ctx.reply(`*Error:* User @${username} is not registered in this group.`, { parse_mode: 'Markdown' });
     }
 
     targetUserId = targetUser.telegram_id;
@@ -198,7 +203,7 @@ export async function handleUnregister(ctx: Context, db: Database) {
   // Check if user is registered
   const isRegistered = await db.isUserInGroup(groupId, targetUserId);
   if (!isRegistered) {
-    return ctx.reply('❌ This user is not registered in this group.');
+    return ctx.reply('*Error:* This user is not registered in this group.', { parse_mode: 'Markdown' });
   }
 
   // Attempt to unregister
@@ -213,8 +218,8 @@ export async function handleUnregister(ctx: Context, db: Database) {
       created_at: Date.now()
     }, targetUserId);
 
-    await ctx.reply(`✅ ${targetName} has been unregistered from this group.`);
+    await ctx.reply(`*Success:* ${targetName} has been unregistered from this group.`, { parse_mode: 'Markdown' });
   } else {
-    await ctx.reply(`❌ ${result.message}`);
+    await ctx.reply(`*Error:* ${result.message}`, { parse_mode: 'Markdown' });
   }
 }
