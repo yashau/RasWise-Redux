@@ -59,10 +59,11 @@ export function formatAmount(amount: number): string {
 export async function sendDMWithFallback(
   ctx: Context,
   userId: number,
-  message: string
+  message: string,
+  parseMode: 'Markdown' | 'MarkdownV2' | 'HTML' | undefined = 'Markdown'
 ): Promise<void> {
   try {
-    await ctx.api.sendMessage(userId, message);
+    await ctx.api.sendMessage(userId, message, { parse_mode: parseMode });
   } catch (error) {
     await ctx.reply(
       '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
@@ -92,4 +93,9 @@ export async function getSession<T>(
     return null;
   }
   return JSON.parse(data) as T;
+}
+
+// Helper function to generate public R2 URL
+export function getPublicPhotoUrl(r2Key: string, r2PublicUrl: string): string {
+  return `${r2PublicUrl}/${r2Key}`;
 }

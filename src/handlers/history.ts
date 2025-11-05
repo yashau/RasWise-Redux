@@ -1,9 +1,9 @@
 import { Context } from 'grammy/web';
 import { Database } from '../db';
 import type { User } from '../types';
-import { formatDate, formatUserName, formatAmount, sendDMWithFallback } from '../utils';
+import { formatDate, formatUserName, formatAmount, sendDMWithFallback, getPublicPhotoUrl } from '../utils';
 
-export async function handleMyExpenses(ctx: Context, db: Database) {
+export async function handleMyExpenses(ctx: Context, db: Database, r2PublicUrl: string) {
   const userId = ctx.from!.id;
 
   // Determine which group to show expenses from
@@ -12,9 +12,6 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
   if (ctx.chat?.type !== 'private') {
     // Command used in a group - use that group
     groupId = ctx.chat!.id;
-
-    // Notify in group that we're DMing
-    await ctx.reply('📊 I\'ll send you your expense details in a DM!');
   }
 
   // Get timezone offset for the group
@@ -46,13 +43,13 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
       const paidBy = await db.getUser(expense.paid_by);
       const paidByName = formatUserName(paidBy, expense.paid_by);
 
-      message += `💰 Expense #${expense.id}\n`;
+      message += `💰 Expense #${expense.group_expense_number}\n`;
       message += `Total amount: ${formatAmount(expense.amount)}\n`;
       message += `Amount you owe: ${formatAmount(split.amount_owed)}\n`;
       if (expense.description) message += `Description: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
-      if (expense.photo_url) message += `📷 Bill photo attached\n`;
-      if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
+      if (expense.photo_url) message += `📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+      if (expense.vendor_payment_slip_url) message += `🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
       message += `Fronted by: ${paidByName}\n`;
       message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
       message += `\n`;
@@ -76,7 +73,7 @@ export async function handleMyExpenses(ctx: Context, db: Database) {
       message += `Paid to: ${paidToName}\n`;
       if (expense.description) message += `For: ${expense.description}\n`;
       if (expense.location) message += `Location: ${expense.location}\n`;
-      if (payment.transfer_slip_url) message += `📷 Transfer slip attached\n`;
+      if (payment.transfer_slip_url) message += `📷 [Transfer slip](${getPublicPhotoUrl(payment.transfer_slip_url, r2PublicUrl)})\n`;
       message += `Date: ${formatDate(payment.paid_at, timezoneOffset)}\n`;
       message += `\n`;
     }
@@ -97,7 +94,6 @@ export async function handleSummary(ctx: Context, db: Database) {
 
   if (ctx.chat?.type !== 'private') {
     groupId = ctx.chat!.id;
-    await ctx.reply('📊 I\'ll send you your summary in a DM!');
   }
 
   if (!groupId) {
@@ -148,14 +144,13 @@ export async function handleSummary(ctx: Context, db: Database) {
   await sendDMWithFallback(ctx, userId, message);
 }
 
-export async function handleHistory(ctx: Context, db: Database) {
+export async function handleHistory(ctx: Context, db: Database, r2PublicUrl: string) {
   const userId = ctx.from!.id;
 
   let groupId: number | undefined;
 
   if (ctx.chat?.type !== 'private') {
     groupId = ctx.chat!.id;
-    await ctx.reply('📚 I\'ll send you the expense history in a DM!');
   }
 
   if (!groupId) {
@@ -183,15 +178,11 @@ export async function handleHistory(ctx: Context, db: Database) {
     const splits = await db.getExpenseSplits(expense.id);
     const paidCount = splits.filter(s => s.paid === 1).length;
 
-    message += `💰 #${expense.id} - ${formatAmount(expense.amount)}\n`;
-    if (expense.description) message += `   ${expense.description}\n`;
-    if (expense.photo_url || expense.vendor_payment_slip_url) {
-      message += `   `;
-      if (expense.photo_url) message += `📷 Bill`;
-      if (expense.photo_url && expense.vendor_payment_slip_url) message += ` | `;
-      if (expense.vendor_payment_slip_url) message += `🧾 Vendor slip`;
-      message += `\n`;
-    }
+    message += `💰 #${expense.group_expense_number} - ${formatAmount(expense.amount)}\n`;
+    if (expense.description) message += `   📝 ${expense.description}\n`;
+    if (expense.location) message += `   📍 ${expense.location}\n`;
+    if (expense.photo_url) message += `   📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+    if (expense.vendor_payment_slip_url) message += `   🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
     message += `   By: ${creatorName} | ${formatDate(expense.created_at, timezoneOffset)}\n`;
     message += `   Split: ${expense.split_type} among ${splits.length} user(s)\n`;
     message += `   Status: ${paidCount}/${splits.length} paid\n\n`;
@@ -202,7 +193,7 @@ export async function handleHistory(ctx: Context, db: Database) {
   await sendDMWithFallback(ctx, userId, message);
 }
 
-export async function handleExpenseDetail(ctx: Context, db: Database, expenseId: number) {
+export async function handleExpenseDetail(ctx: Context, db: Database, expenseId: number, r2PublicUrl: string) {
   const userId = ctx.from!.id;
 
   const expense = await db.getExpense(expenseId);
@@ -226,12 +217,12 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
   const creator = await db.getUser(expense.created_by);
   const creatorName = formatUserName(creator, expense.created_by);
 
-  let message = `💰 Expense #${expense.id} Details:\n\n`;
+  let message = `💰 Expense #${expense.group_expense_number} Details:\n\n`;
   message += `Amount: ${formatAmount(expense.amount)}\n`;
   if (expense.description) message += `Description: ${expense.description}\n`;
   if (expense.location) message += `Location: ${expense.location}\n`;
-  if (expense.photo_url) message += `📷 Bill photo attached\n`;
-  if (expense.vendor_payment_slip_url) message += `🧾 Vendor payment slip attached\n`;
+  if (expense.photo_url) message += `📷 [Bill photo](${getPublicPhotoUrl(expense.photo_url, r2PublicUrl)})\n`;
+  if (expense.vendor_payment_slip_url) message += `🧾 [Vendor slip](${getPublicPhotoUrl(expense.vendor_payment_slip_url, r2PublicUrl)})\n`;
   message += `Created by: ${creatorName}\n`;
   message += `Date: ${formatDate(expense.created_at, timezoneOffset)}\n`;
   message += `Split type: ${expense.split_type}\n\n`;
@@ -246,11 +237,8 @@ export async function handleExpenseDetail(ctx: Context, db: Database, expenseId:
 
   // Send to user's DM if possible, otherwise reply in chat
   try {
-    await ctx.api.sendMessage(userId, message);
-    if (ctx.chat?.type !== 'private') {
-      await ctx.reply('📊 Sent expense details to your DM!');
-    }
+    await ctx.api.sendMessage(userId, message, { parse_mode: 'Markdown' });
   } catch (error) {
-    await ctx.reply(message);
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   }
 }

@@ -4,6 +4,7 @@ export interface Env {
   BILLS_BUCKET: R2Bucket;
   BOT_TOKEN: string;
   WEBHOOK_DOMAIN: string;
+  R2_PUBLIC_URL: string;
 }
 
 export interface User {
@@ -35,6 +36,7 @@ export interface GroupUser {
 export interface Expense {
   id: number;
   group_id: number;
+  group_expense_number: number;
   created_by: number;
   paid_by: number;
   amount: number;
@@ -76,6 +78,7 @@ export interface ReminderSettings {
 // Session data for multi-step operations
 export interface ExpenseSession {
   step: 'amount' | 'description' | 'location' | 'photo' | 'vendor_slip' | 'users' | 'paid_by' | 'split_type' | 'custom_splits';
+  group_id?: number;
   amount?: number;
   description?: string;
   location?: string;

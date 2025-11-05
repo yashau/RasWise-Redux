@@ -20,17 +20,27 @@ export async function handleAddExpense(ctx: Context, db: Database, kv: KVNamespa
     );
   }
 
-  // Start expense session
+  // Start expense session with groupId stored
   const session: ExpenseSession = {
-    step: 'amount'
+    step: 'amount',
+    group_id: groupId
   };
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  const sessionKey = `expense_session:${userId}`;
+  await saveSession(kv, sessionKey, session);
 
-  await ctx.reply(
-    '💰 Let\'s add a new expense!\n\n' +
-    'Step 1: Please enter the total amount (just the number):'
-  );
+  // Send initial prompt to DM
+  try {
+    await ctx.api.sendMessage(
+      userId,
+      '💰 Let\'s add a new expense!\n\n' +
+      'Step 1: Please enter the total amount (just the number):'
+    );
+  } catch (error) {
+    await ctx.reply(
+      '❌ I couldn\'t send you a DM. Please start a chat with me first by clicking my name and pressing "Start".'
+    );
+  }
 }
 
 export async function handleExpenseAmount(
@@ -41,24 +51,29 @@ export async function handleExpenseAmount(
   groupId: number,
   userId: number
 ) {
-  const amount = parseFloat(ctx.message?.text || '');
+  try {
+    const amount = parseFloat(ctx.message?.text || '');
 
-  if (isNaN(amount) || amount <= 0) {
-    return ctx.reply('Please enter a valid positive number.');
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply('Please enter a valid positive number.');
+    }
+
+    session.amount = amount;
+    session.step = 'description';
+
+    await saveSession(kv, `expense_session:${userId}`, session);
+
+    const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:description');
+
+    await ctx.reply(
+      `Amount: ${amount}\n\n` +
+      'Step 2: Please enter a description for this expense:',
+      { reply_markup: keyboard }
+    );
+  } catch (error) {
+    console.error('Error in handleExpenseAmount:', error);
+    await ctx.reply('An error occurred. Please try again with /addexpense');
   }
-
-  session.amount = amount;
-  session.step = 'description';
-
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
-
-  const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:description');
-
-  await ctx.reply(
-    `Amount: ${amount}\n\n` +
-    'Step 2: Please enter a description for this expense:',
-    { reply_markup: keyboard }
-  );
 }
 
 export async function handleExpenseDescription(
@@ -72,7 +87,7 @@ export async function handleExpenseDescription(
   session.description = ctx.message?.text;
   session.step = 'location';
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  await saveSession(kv, `expense_session:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:location');
 
@@ -93,7 +108,7 @@ export async function handleExpenseLocation(
   session.location = ctx.message?.text;
   session.step = 'photo';
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  await saveSession(kv, `expense_session:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:photo');
 
@@ -113,33 +128,47 @@ export async function handleExpensePhoto(
   userId: number
 ) {
   const photo = ctx.message?.photo;
+  console.log(`[R2 PHOTO] User ${userId}, has photo: ${!!photo}, photo count: ${photo?.length || 0}`);
 
   if (photo && photo.length > 0) {
-    // Get the largest photo
-    const largestPhoto = photo[photo.length - 1];
-    const fileId = largestPhoto.file_id;
+    try {
+      // Get the largest photo
+      const largestPhoto = photo[photo.length - 1];
+      const fileId = largestPhoto.file_id;
+      console.log(`[R2 PHOTO] File ID: ${fileId}, Size: ${largestPhoto.file_size}`);
 
-    // Get file from Telegram
-    const file = await ctx.api.getFile(fileId);
-    const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
+      // Get file from Telegram
+      const file = await ctx.api.getFile(fileId);
+      const fileUrl = `https://api.telegram.org/file/bot${ctx.api.token}/${file.file_path}`;
+      console.log(`[R2 PHOTO] File path: ${file.file_path}, URL length: ${fileUrl.length}`);
 
-    // Download and upload to R2
-    const response = await fetch(fileUrl);
-    const blob = await response.arrayBuffer();
+      // Download and upload to R2
+      const response = await fetch(fileUrl);
+      console.log(`[R2 PHOTO] Fetch response status: ${response.status}`);
 
-    const key = `bills/${groupId}/${Date.now()}_${fileId}.jpg`;
-    await r2.put(key, blob, {
-      httpMetadata: {
-        contentType: 'image/jpeg'
-      }
-    });
+      const blob = await response.arrayBuffer();
+      console.log(`[R2 PHOTO] Downloaded blob size: ${blob.byteLength} bytes`);
 
-    session.photo_url = key;
+      const key = `bills/${groupId}/${Date.now()}_${fileId}.jpg`;
+      console.log(`[R2 PHOTO] Uploading to R2 with key: ${key}`);
+
+      await r2.put(key, blob, {
+        httpMetadata: {
+          contentType: 'image/jpeg'
+        }
+      });
+      console.log(`[R2 PHOTO] Successfully uploaded to R2`);
+
+      session.photo_url = key;
+    } catch (error) {
+      console.error(`[R2 PHOTO ERROR]`, error);
+      await ctx.reply('⚠️ Error uploading photo. Continuing without it.');
+    }
   }
 
   session.step = 'vendor_slip';
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  await saveSession(kv, `expense_session:${userId}`, session);
 
   const keyboard = new InlineKeyboard().text('Skip', 'expense_skip:vendor_slip');
 
@@ -186,13 +215,13 @@ export async function handleVendorSlipPhoto(
 
   session.step = 'users';
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  await saveSession(kv, `expense_session:${userId}`, session);
 
   // Get registered users
   const users = await db.getGroupUsers(groupId);
 
   if (users.length === 0) {
-    await kv.delete(`expense_session:${groupId}:${userId}`);
+    await kv.delete(`expense_session:${userId}`);
     return ctx.reply('No users registered in this group. Please register users first.');
   }
 
@@ -225,7 +254,7 @@ export async function handleUserSelection(
   groupId: number,
   currentUserId: number
 ) {
-  const sessionKey = `expense_session:${groupId}:${currentUserId}`;
+  const sessionKey = `expense_session:${currentUserId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {
@@ -271,7 +300,13 @@ export async function handleUserSelection(
   keyboard.text('All Users', 'expense_user:all').row();
   keyboard.text('Continue', 'expense_users_done');
 
-  await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: keyboard });
+  } catch (error) {
+    // Ignore error if message is not modified (same selection)
+    console.log('Message not modified, continuing...');
+  }
+
   await ctx.answerCallbackQuery({
     text: `${session.selected_users.length} user(s) selected`
   });
@@ -284,7 +319,7 @@ export async function handleUsersDone(
   groupId: number,
   userId: number
 ) {
-  const sessionKey = `expense_session:${groupId}:${userId}`;
+  const sessionKey = `expense_session:${userId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {
@@ -334,7 +369,7 @@ export async function handlePaidBy(
   groupId: number,
   userId: number
 ) {
-  const sessionKey = `expense_session:${groupId}:${userId}`;
+  const sessionKey = `expense_session:${userId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {
@@ -368,9 +403,10 @@ export async function handleSplitType(
   r2: R2Bucket,
   splitType: 'equal' | 'custom',
   groupId: number,
-  userId: number
+  userId: number,
+  r2PublicUrl: string
 ) {
-  const sessionKey = `expense_session:${groupId}:${userId}`;
+  const sessionKey = `expense_session:${userId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {
@@ -384,7 +420,7 @@ export async function handleSplitType(
 
   if (splitType === 'equal') {
     // Create expense immediately
-    await createExpense(ctx, db, kv, r2, session, groupId, userId);
+    await createExpense(ctx, db, kv, r2, session, groupId, userId, r2PublicUrl);
   } else {
     // Ask for custom splits
     session.step = 'custom_splits';
@@ -415,7 +451,8 @@ export async function handleCustomSplit(
   r2: R2Bucket,
   session: ExpenseSession,
   groupId: number,
-  userId: number
+  userId: number,
+  r2PublicUrl: string
 ) {
   const text = ctx.message?.text || '';
   const parts = text.trim().split(/\s+/);
@@ -441,7 +478,7 @@ export async function handleCustomSplit(
 
   session.custom_splits[targetUserId] = amount;
 
-  await saveSession(kv, `expense_session:${groupId}:${userId}`, session);
+  await saveSession(kv, `expense_session:${userId}`, session);
 
   const users = await db.getGroupUsers(groupId);
   const remaining = session.selected_users!.filter(
@@ -459,7 +496,7 @@ export async function handleCustomSplit(
       );
     }
 
-    await createExpense(ctx, db, kv, r2, session, groupId, userId);
+    await createExpense(ctx, db, kv, r2, session, groupId, userId, r2PublicUrl);
   } else {
     const remainingNames = remaining.map(uid => {
       const user = users.find(u => u.telegram_id === uid);
@@ -481,10 +518,11 @@ async function createExpense(
   r2: R2Bucket,
   session: ExpenseSession,
   groupId: number,
-  userId: number
+  userId: number,
+  r2PublicUrl: string
 ) {
   // Create expense
-  const expenseId = await db.createExpense({
+  const expense = await db.createExpense({
     group_id: groupId,
     created_by: userId,
     paid_by: session.paid_by!,
@@ -495,6 +533,9 @@ async function createExpense(
     vendor_payment_slip_url: session.vendor_payment_slip_url,
     split_type: session.split_type!
   });
+
+  const expenseId = expense.id;
+  const groupExpenseNumber = expense.group_expense_number;
 
   // Create splits - EXCLUDE the payer from splits
   const splitAmounts: { [key: number]: number } = {};
@@ -522,7 +563,7 @@ async function createExpense(
   }
 
   // Clear session
-  await kv.delete(`expense_session:${groupId}:${userId}`);
+  await kv.delete(`expense_session:${userId}`);
 
   // Build confirmation message
   const users = await db.getGroupUsers(groupId);
@@ -542,9 +583,23 @@ async function createExpense(
     message += `  • ${name}: ${formatAmount(amount)}\n`;
   }
 
-  message += `\nExpense ID: #${expenseId}`;
+  message += `\nExpense ID: #${groupExpenseNumber}`;
 
+  // Send confirmation to DM
   await ctx.reply(message);
+
+  // Also send summary to the group
+  let groupMessage = `✅ New expense added by ${formatUserName(users.find(u => u.telegram_id === userId), userId)}\n\n`;
+  groupMessage += `💰 Amount: ${formatAmount(session.amount!)}\n`;
+  if (session.description) groupMessage += `📝 Description: ${session.description}\n`;
+  if (session.location) groupMessage += `📍 Location: ${session.location}\n`;
+  if (session.photo_url) groupMessage += `📷 [Bill photo](${getPublicPhotoUrl(session.photo_url, r2PublicUrl)})\n`;
+  if (session.vendor_payment_slip_url) groupMessage += `🧾 [Vendor slip](${getPublicPhotoUrl(session.vendor_payment_slip_url, r2PublicUrl)})\n`;
+  groupMessage += `💳 Paid by: ${payerName}\n`;
+  groupMessage += `👥 Split among ${Object.keys(splitAmounts).length} user(s)\n`;
+  groupMessage += `\nExpense ID: #${groupExpenseNumber}`;
+
+  await ctx.api.sendMessage(groupId, groupMessage, { parse_mode: 'Markdown' });
 
   // If there's a photo, send it
   if (session.photo_url) {
@@ -565,7 +620,7 @@ export async function handleSkip(
   groupId: number,
   userId: number
 ) {
-  const sessionKey = `expense_session:${groupId}:${userId}`;
+  const sessionKey = `expense_session:${userId}`;
   const sessionData = await kv.get(sessionKey);
 
   if (!sessionData) {

@@ -116,13 +116,23 @@ export class Database {
   }
 
   // Expense operations
-  async createExpense(expense: Omit<Expense, 'id' | 'created_at'>): Promise<number> {
+  async createExpense(expense: Omit<Expense, 'id' | 'group_expense_number' | 'created_at'>): Promise<{ id: number; group_expense_number: number }> {
+    // Get the next group expense number
+    const maxNumResult = await this.db.prepare(`
+      SELECT COALESCE(MAX(group_expense_number), 0) as max_num
+      FROM expenses
+      WHERE group_id = ?
+    `).bind(expense.group_id).first<{ max_num: number }>();
+
+    const nextGroupExpenseNumber = (maxNumResult?.max_num || 0) + 1;
+
     const result = await this.db.prepare(`
-      INSERT INTO expenses (group_id, created_by, paid_by, amount, description, location, photo_url, vendor_payment_slip_url, split_type, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      RETURNING id
+      INSERT INTO expenses (group_id, group_expense_number, created_by, paid_by, amount, description, location, photo_url, vendor_payment_slip_url, split_type, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      RETURNING id, group_expense_number
     `).bind(
       expense.group_id,
+      nextGroupExpenseNumber,
       expense.created_by,
       expense.paid_by,
       expense.amount,
@@ -132,8 +142,8 @@ export class Database {
       expense.vendor_payment_slip_url || null,
       expense.split_type,
       Date.now()
-    ).first<{ id: number }>();
-    return result!.id;
+    ).first<{ id: number; group_expense_number: number }>();
+    return result!;
   }
 
   async getExpense(expense_id: number): Promise<Expense | null> {

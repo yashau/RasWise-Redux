@@ -129,9 +129,9 @@ export default {
       bot.command('viewpayment', (ctx) => handleViewPayment(ctx, db));
 
       bot.command('addexpense', (ctx) => handleAddExpense(ctx, db, env.KV));
-      bot.command('myexpenses', (ctx) => handleMyExpenses(ctx, db));
+      bot.command('myexpenses', (ctx) => handleMyExpenses(ctx, db, env.R2_PUBLIC_URL));
       bot.command('summary', (ctx) => handleSummary(ctx, db));
-      bot.command('history', (ctx) => handleHistory(ctx, db));
+      bot.command('history', (ctx) => handleHistory(ctx, db, env.R2_PUBLIC_URL));
 
       bot.command('markpaid', (ctx) => handleMarkPaid(ctx, db));
       bot.command('adminmarkpaid', (ctx) => handleAdminMarkPaid(ctx, db));
@@ -142,29 +142,74 @@ export default {
       bot.command('settimezone', (ctx) => handleSetTimezone(ctx, db, env.KV));
       bot.command('viewtimezone', (ctx) => handleViewTimezone(ctx, db));
 
-      // Callback query handlers
+      // Callback query handlers - now using sessions to get group_id
       bot.callbackQuery(/^expense_user:(.+)$/, async (ctx) => {
-        const userId = ctx.match![1];
-        await handleUserSelection(ctx, db, env.KV, parseInt(userId), userId, ctx.chat!.id, ctx.from!.id);
+        const targetUserId = ctx.match![1];
+        const currentUserId = ctx.from!.id;
+
+        // Get session to find group_id
+        const sessionData = await env.KV.get(`expense_session:${currentUserId}`);
+        if (!sessionData) {
+          return ctx.answerCallbackQuery({ text: 'Session expired' });
+        }
+        const session: ExpenseSession = JSON.parse(sessionData);
+
+        await handleUserSelection(ctx, db, env.KV, parseInt(targetUserId), targetUserId, session.group_id!, currentUserId);
       });
 
       bot.callbackQuery('expense_users_done', async (ctx) => {
-        await handleUsersDone(ctx, db, env.KV, ctx.chat!.id, ctx.from!.id);
+        const currentUserId = ctx.from!.id;
+
+        // Get session to find group_id
+        const sessionData = await env.KV.get(`expense_session:${currentUserId}`);
+        if (!sessionData) {
+          return ctx.answerCallbackQuery({ text: 'Session expired' });
+        }
+        const session: ExpenseSession = JSON.parse(sessionData);
+
+        await handleUsersDone(ctx, db, env.KV, session.group_id!, currentUserId);
       });
 
       bot.callbackQuery(/^expense_paidby:(.+)$/, async (ctx) => {
         const paidById = parseInt(ctx.match![1]);
-        await handlePaidBy(ctx, db, env.KV, paidById, ctx.chat!.id, ctx.from!.id);
+        const currentUserId = ctx.from!.id;
+
+        // Get session to find group_id
+        const sessionData = await env.KV.get(`expense_session:${currentUserId}`);
+        if (!sessionData) {
+          return ctx.answerCallbackQuery({ text: 'Session expired' });
+        }
+        const session: ExpenseSession = JSON.parse(sessionData);
+
+        await handlePaidBy(ctx, db, env.KV, paidById, session.group_id!, currentUserId);
       });
 
       bot.callbackQuery(/^expense_split:(.+)$/, async (ctx) => {
         const splitType = ctx.match![1] as 'equal' | 'custom';
-        await handleSplitType(ctx, db, env.KV, env.BILLS_BUCKET, splitType, ctx.chat!.id, ctx.from!.id);
+        const currentUserId = ctx.from!.id;
+
+        // Get session to find group_id
+        const sessionData = await env.KV.get(`expense_session:${currentUserId}`);
+        if (!sessionData) {
+          return ctx.answerCallbackQuery({ text: 'Session expired' });
+        }
+        const session: ExpenseSession = JSON.parse(sessionData);
+
+        await handleSplitType(ctx, db, env.KV, env.BILLS_BUCKET, splitType, session.group_id!, currentUserId, env.R2_PUBLIC_URL);
       });
 
       bot.callbackQuery(/^expense_skip:(.+)$/, async (ctx) => {
         const field = ctx.match![1];
-        await handleSkip(ctx, db, env.KV, env.BILLS_BUCKET, field, ctx.chat!.id, ctx.from!.id);
+        const currentUserId = ctx.from!.id;
+
+        // Get session to find group_id
+        const sessionData = await env.KV.get(`expense_session:${currentUserId}`);
+        if (!sessionData) {
+          return ctx.answerCallbackQuery({ text: 'Session expired' });
+        }
+        const session: ExpenseSession = JSON.parse(sessionData);
+
+        await handleSkip(ctx, db, env.KV, env.BILLS_BUCKET, field, session.group_id!, currentUserId);
       });
 
       bot.callbackQuery(/^markpaid:(.+)$/, async (ctx) => {
@@ -214,21 +259,24 @@ export default {
           return;
         }
 
-        // Check for expense session
-        const expenseSessionKey = `expense_session:${chatId}:${userId}`;
+        // Check for expense session (DM-based)
+        const expenseSessionKey = `expense_session:${userId}`;
         const expenseSessionData = await env.KV.get(expenseSessionKey);
 
         if (expenseSessionData) {
           const session: ExpenseSession = JSON.parse(expenseSessionData);
 
+          // Use the stored group_id from session
+          const groupId = session.group_id!;
+
           if (session.step === 'amount') {
-            await handleExpenseAmount(ctx, db, env.KV, session, chatId, userId);
+            await handleExpenseAmount(ctx, db, env.KV, session, groupId, userId);
           } else if (session.step === 'description') {
-            await handleExpenseDescription(ctx, db, env.KV, session, chatId, userId);
+            await handleExpenseDescription(ctx, db, env.KV, session, groupId, userId);
           } else if (session.step === 'location') {
-            await handleExpenseLocation(ctx, db, env.KV, session, chatId, userId);
+            await handleExpenseLocation(ctx, db, env.KV, session, groupId, userId);
           } else if (session.step === 'custom_splits') {
-            await handleCustomSplit(ctx, db, env.KV, env.BILLS_BUCKET, session, chatId, userId);
+            await handleCustomSplit(ctx, db, env.KV, env.BILLS_BUCKET, session, groupId, userId, env.R2_PUBLIC_URL);
           }
           return;
         }
@@ -237,7 +285,6 @@ export default {
       // Photo handler for expense photos and payment slips
       bot.on('message:photo', async (ctx) => {
         const userId = ctx.from!.id;
-        const chatId = ctx.chat!.id;
 
         // Check for payment session first
         const paymentSessionData = await env.KV.get(`payment_session:${userId}`);
@@ -246,16 +293,17 @@ export default {
           return;
         }
 
-        const expenseSessionKey = `expense_session:${chatId}:${userId}`;
+        const expenseSessionKey = `expense_session:${userId}`;
         const expenseSessionData = await env.KV.get(expenseSessionKey);
 
         if (expenseSessionData) {
           const session: ExpenseSession = JSON.parse(expenseSessionData);
+          const groupId = session.group_id!;
 
           if (session.step === 'photo') {
-            await handleExpensePhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, chatId, userId);
+            await handleExpensePhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, groupId, userId);
           } else if (session.step === 'vendor_slip') {
-            await handleVendorSlipPhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, chatId, userId);
+            await handleVendorSlipPhoto(ctx, db, env.KV, env.BILLS_BUCKET, session, groupId, userId);
           }
         }
       });
