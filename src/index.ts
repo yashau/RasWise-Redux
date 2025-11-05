@@ -99,11 +99,12 @@ export default {
         await ctx.reply(
           '*RasWise Redux Help*\n\n' +
           '*User Management:*\n' +
-          '/register - Reply to a message to register that user\n' +
-          '/unregister - Unregister a user from the group (admin)\n' +
           '/listusers - See all registered users in this group\n' +
+          '/register - Manually register a user (reply to message)\n' +
+          '/unregister - Unregister a user from the group (admin)\n' +
           '/setpayment - Set/update your bank account\n' +
-          '/viewpayment - View your saved payment details\n\n' +
+          '/viewpayment - View your saved payment details\n' +
+          '*Note:* Users are auto-registered on first message\n\n' +
           '*Expense Management:*\n' +
           '/addexpense - Add a new expense to split\n' +
           '/myexpenses - See your pending expenses (DM)\n' +
@@ -114,7 +115,8 @@ export default {
           '/adminmarkpaid - Mark payment on behalf of user (admin)\n' +
           '/owed - See who owes you money (DM)\n\n' +
           '*Reminders:*\n' +
-          '/setreminder - Enable/disable daily reminders\n\n' +
+          '/setreminder - Enable/disable daily reminders (admin)\n' +
+          '/reminderstatus - Check reminder status\n\n' +
           '*Timezone:*\n' +
           '/settimezone - Set group timezone (admin only)\n' +
           '/viewtimezone - View current timezone\n\n' +
@@ -241,6 +243,22 @@ export default {
       bot.on('message:text', async (ctx) => {
         const userId = ctx.from!.id;
         const chatId = ctx.chat!.id;
+
+        // Auto-register users on first message in group chats
+        if (ctx.chat?.type !== 'private' && ctx.from && !ctx.from.is_bot) {
+          const isRegistered = await db.isUserInGroup(chatId, userId);
+          if (!isRegistered) {
+            // Create user if doesn't exist
+            await db.createUser({
+              telegram_id: userId,
+              username: ctx.from.username,
+              first_name: ctx.from.first_name,
+              last_name: ctx.from.last_name
+            });
+            // Register user in group (registered_by is themselves for auto-registration)
+            await db.registerUserInGroup(chatId, userId, userId);
+          }
+        }
 
         // Check for timezone session
         const timezoneSessionKey = `timezone_session:${chatId}:${userId}`;
