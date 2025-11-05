@@ -100,6 +100,7 @@ export default {
           '*RasWise Redux Help*\n\n' +
           '*User Management:*\n' +
           '/register - Reply to a message to register that user\n' +
+          '/unregister - Unregister a user from the group (admin)\n' +
           '/listusers - See all registered users in this group\n' +
           '/setpayment - Set/update your bank account\n' +
           '/viewpayment - View your saved payment details\n\n' +

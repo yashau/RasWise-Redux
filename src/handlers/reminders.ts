@@ -75,6 +75,12 @@ export async function handleSetReminder(ctx: Context, db: Database) {
     return ctx.reply('This command can only be used in group chats.');
   }
 
+  // Check if user is admin
+  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
+  if (member.status !== 'creator' && member.status !== 'administrator') {
+    return ctx.reply('*Error:* Only group admins can configure reminders.', { parse_mode: 'Markdown' });
+  }
+
   const groupId = ctx.chat.id;
 
   // Toggle reminder settings
