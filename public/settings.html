@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Settings - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+    <style>
+        .setting-card {
+            background-color: hsl(var(--card));
+            border: 1px solid hsl(var(--border));
+            border-radius: var(--radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .setting-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .setting-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .setting-description {
+            font-size: 0.875rem;
+            color: hsl(var(--muted-foreground));
+            margin-bottom: 0.75rem;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: hsl(var(--border));
+            transition: 0.3s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: hsl(var(--primary));
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+
+        .toggle-slider.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.625rem;
+            background-color: hsl(var(--primary) / 0.1);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: hsl(var(--primary));
+        }
+
+        .timezone-select {
+            width: 100%;
+            padding: 0.625rem 0.75rem;
+            border: 1px solid hsl(var(--border));
+            border-radius: var(--radius);
+            font-size: 1rem;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Group Settings</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading settings...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+
+        <div id="settings-content" style="display: none;">
+            <!-- Reminder Settings -->
+            <div class="setting-card">
+                <div class="setting-header">
+                    <div class="setting-title">
+                        Daily Reminders
+                        <span id="admin-badge-reminder" class="admin-badge" style="display: none; margin-left: 0.5rem;">Admin Only</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="reminders-toggle">
+                        <span class="toggle-slider" id="reminders-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-description">
+                    Send daily reminders to users with unpaid expenses.
+                </div>
+                <div id="last-reminder" style="font-size: 0.75rem; color: hsl(var(--muted-foreground));"></div>
+            </div>
+
+            <!-- Timezone Settings -->
+            <div class="setting-card">
+                <div class="setting-header">
+                    <div class="setting-title">
+                        Timezone
+                        <span id="admin-badge-timezone" class="admin-badge" style="display: none; margin-left: 0.5rem;">Admin Only</span>
+                    </div>
+                </div>
+                <div class="setting-description">
+                    Set the timezone for reminder notifications.
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <select id="timezone-select" class="timezone-select">
+                        <option value="-12">UTC-12:00</option>
+                        <option value="-11">UTC-11:00</option>
+                        <option value="-10">UTC-10:00</option>
+                        <option value="-9">UTC-09:00</option>
+                        <option value="-8">UTC-08:00</option>
+                        <option value="-7">UTC-07:00</option>
+                        <option value="-6">UTC-06:00</option>
+                        <option value="-5">UTC-05:00</option>
+                        <option value="-4">UTC-04:00</option>
+                        <option value="-3">UTC-03:00</option>
+                        <option value="-2">UTC-02:00</option>
+                        <option value="-1">UTC-01:00</option>
+                        <option value="0">UTC+00:00</option>
+                        <option value="1">UTC+01:00</option>
+                        <option value="2">UTC+02:00</option>
+                        <option value="3">UTC+03:00</option>
+                        <option value="4">UTC+04:00</option>
+                        <option value="5">UTC+05:00</option>
+                        <option value="6">UTC+06:00</option>
+                        <option value="7">UTC+07:00</option>
+                        <option value="8">UTC+08:00</option>
+                        <option value="9">UTC+09:00</option>
+                        <option value="10">UTC+10:00</option>
+                        <option value="11">UTC+11:00</option>
+                        <option value="12">UTC+12:00</option>
+                        <option value="13">UTC+13:00</option>
+                        <option value="14">UTC+14:00</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Currency Settings -->
+            <div class="setting-card">
+                <div class="setting-header">
+                    <div class="setting-title">
+                        Currency
+                        <span id="admin-badge-currency" class="admin-badge" style="display: none; margin-left: 0.5rem;">Admin Only</span>
+                    </div>
+                </div>
+                <div class="setting-description">
+                    Set the currency symbol for all amounts in this group.
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <select id="currency-select" class="timezone-select">
+                        <option value="$">$ (Dollar)</option>
+                        <option value="MVR">MVR (Maldivian Rufiyaa)</option>
+                        <option value="₹">₹ (Rupee)</option>
+                        <option value="€">€ (Euro)</option>
+                        <option value="£">£ (Pound)</option>
+                        <option value="¥">¥ (Yen)</option>
+                        <option value="₽">₽ (Ruble)</option>
+                        <option value="₩">₩ (Won)</option>
+                        <option value="฿">฿ (Baht)</option>
+                        <option value="₪">₪ (Shekel)</option>
+                        <option value="₦">₦ (Naira)</option>
+                        <option value="₨">₨ (Rupee - Generic)</option>
+                        <option value="₱">₱ (Peso)</option>
+                        <option value="R">R (Rand)</option>
+                        <option value="RM">RM (Ringgit)</option>
+                        <option value="kr">kr (Krona)</option>
+                        <option value="CHF">CHF (Swiss Franc)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let isAdmin = false;
+        let currentSettings = null;
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/group-settings?group_id=' + groupId + '&user_id=' + userId);
+
+                currentSettings = data;
+                isAdmin = data.is_admin || false;
+
+                document.getElementById('group-name').textContent = 'Group ' + groupId;
+                MiniApp.hideLoading();
+                document.getElementById('settings-content').style.display = 'block';
+
+                // Setup reminder toggle
+                const reminderToggle = document.getElementById('reminders-toggle');
+                const reminderSlider = document.getElementById('reminders-slider');
+                reminderToggle.checked = data.reminders_enabled;
+
+                if (!isAdmin) {
+                    reminderToggle.disabled = true;
+                    reminderSlider.classList.add('disabled');
+                    document.getElementById('admin-badge-reminder').style.display = 'inline-flex';
+                } else {
+                    reminderToggle.addEventListener('change', updateReminders);
+                }
+
+                // Show last reminder sent
+                if (data.last_reminder_sent) {
+                    document.getElementById('last-reminder').textContent =
+                        'Last sent: ' + MiniApp.formatDateTime(data.last_reminder_sent);
+                }
+
+                // Setup timezone select
+                const timezoneSelect = document.getElementById('timezone-select');
+                timezoneSelect.value = data.timezone.toString();
+
+                if (!isAdmin) {
+                    timezoneSelect.disabled = true;
+                    document.getElementById('admin-badge-timezone').style.display = 'inline-flex';
+                } else {
+                    timezoneSelect.addEventListener('change', updateTimezone);
+                }
+
+                // Setup currency select
+                const currencySelect = document.getElementById('currency-select');
+                currencySelect.value = data.currency || '$';
+
+                if (!isAdmin) {
+                    currencySelect.disabled = true;
+                    document.getElementById('admin-badge-currency').style.display = 'inline-flex';
+                } else {
+                    currencySelect.addEventListener('change', updateCurrency);
+                }
+            } catch (error) {
+                MiniApp.hideLoading();
+                MiniApp.showError('Failed to load settings');
+                console.error(error);
+            }
+        }
+
+        async function updateReminders() {
+            const toggle = document.getElementById('reminders-toggle');
+            const enabled = toggle.checked;
+
+            try {
+                await MiniApp.apiRequest('/api/update-reminders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        enabled: enabled
+                    })
+                });
+
+                MiniApp.haptic('success');
+                showSuccess('Reminder settings updated');
+            } catch (error) {
+                // Revert toggle
+                toggle.checked = !enabled;
+                MiniApp.showError('Failed to update reminder settings');
+                console.error(error);
+            }
+        }
+
+        async function updateTimezone() {
+            const select = document.getElementById('timezone-select');
+            const timezone = parseInt(select.value);
+
+            try {
+                await MiniApp.apiRequest('/api/update-timezone', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        timezone: timezone
+                    })
+                });
+
+                MiniApp.haptic('success');
+                showSuccess('Timezone updated');
+            } catch (error) {
+                // Revert select
+                select.value = currentSettings.timezone.toString();
+                MiniApp.showError('Failed to update timezone');
+                console.error(error);
+            }
+        }
+
+        async function updateCurrency() {
+            const select = document.getElementById('currency-select');
+            const currency = select.value;
+
+            try {
+                await MiniApp.apiRequest('/api/update-currency', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        currency: currency
+                    })
+                });
+
+                MiniApp.haptic('success');
+                showSuccess('Currency updated');
+                currentSettings.currency = currency;
+            } catch (error) {
+                // Revert select
+                select.value = currentSettings.currency || '$';
+                MiniApp.showError('Failed to update currency');
+                console.error(error);
+            }
+        }
+
+        function showSuccess(message) {
+            const successEl = document.getElementById('success');
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 3000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Payment - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Admin Payment</h1>
+            <p id="group-name">Mark payment on behalf of users</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading unpaid expenses...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="not-admin" class="error" style="display: none;">
+            Only group admins can use this feature.
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">✅</div>
+            <h2>No Unpaid Expenses</h2>
+            <p>All expenses have been paid!</p>
+        </div>
+
+        <div id="splits-list" class="expense-list" style="display: none;"></div>
+
+        <div id="payment-form" class="payment-form" style="display: none;">
+            <div class="payment-form-title">
+                Mark as Paid
+            </div>
+
+            <div class="selected-expense-summary">
+                <div class="summary-row">
+                    <span class="summary-label">Expense:</span>
+                    <span id="selected-description"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">User:</span>
+                    <span id="selected-user"></span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Amount:</span>
+                    <span id="selected-amount" class="summary-amount"></span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="transfer-slip">Transfer Slip (Optional)</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="transfer-slip" accept="image/*">
+                    <div>📎 Tap to upload transfer slip</div>
+                </div>
+                <div id="slip-preview" class="file-preview"></div>
+            </div>
+
+            <button id="confirm-payment-btn" class="button">
+                Confirm Payment
+            </button>
+
+            <button id="cancel-payment-btn" class="button" style="margin-top: 0.5rem; background-color: hsl(var(--secondary)); color: hsl(var(--secondary-foreground));">
+                Cancel
+            </button>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let allSplits = [];
+        let selectedSplit = null;
+        let isAdmin = false;
+        let currency = '$';
+        const slipUpload = new FileUploadHandler('transfer-slip', 'slip-preview');
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                // Check if user is admin and load unpaid splits
+                const data = await MiniApp.apiRequest('/api/unpaid-splits?group_id=' + groupId + '&user_id=' + userId);
+
+                MiniApp.hideLoading();
+
+                allSplits = data.splits || [];
+                currency = data.currency || '$';
+
+                if (allSplits.length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    displaySplits();
+                    document.getElementById('splits-list').style.display = 'flex';
+                }
+
+                // Setup payment form buttons
+                document.getElementById('confirm-payment-btn').addEventListener('click', confirmPayment);
+                document.getElementById('cancel-payment-btn').addEventListener('click', cancelPayment);
+            } catch (error) {
+                MiniApp.hideLoading();
+
+                // Check if it's an authorization error
+                if (error.message && error.message.includes('admin')) {
+                    document.getElementById('not-admin').style.display = 'block';
+                } else {
+                    MiniApp.showError('Failed to load unpaid expenses');
+                }
+                console.error(error);
+            }
+        }
+
+        function displaySplits() {
+            const listEl = document.getElementById('splits-list');
+            listEl.innerHTML = '';
+
+            allSplits.forEach(split => {
+                const card = document.createElement('div');
+                card.className = 'expense-card clickable';
+                card.style.cursor = 'pointer';
+
+                const header = document.createElement('div');
+                header.className = 'expense-header';
+
+                const idBadge = document.createElement('div');
+                idBadge.className = 'expense-id-badge';
+                idBadge.textContent = '#' + split.expense.group_expense_number;
+
+                const amount = document.createElement('div');
+                amount.className = 'expense-amount';
+                amount.textContent = MiniApp.formatCurrency(split.amount_owed, currency);
+
+                header.appendChild(idBadge);
+                header.appendChild(amount);
+
+                const description = document.createElement('div');
+                description.className = 'expense-description';
+                description.textContent = split.expense.description || 'No description';
+
+                const meta = document.createElement('div');
+                meta.className = 'expense-meta';
+
+                const userName = document.createElement('span');
+                userName.className = 'meta-item';
+                userName.textContent = '👤 ' + split.user_name + ' owes ' + split.expense.paid_by_name;
+                meta.appendChild(userName);
+
+                const date = document.createElement('span');
+                date.className = 'meta-item';
+                date.textContent = '📅 ' + MiniApp.formatDate(split.expense.created_at);
+                meta.appendChild(date);
+
+                card.appendChild(header);
+                card.appendChild(description);
+                card.appendChild(meta);
+
+                card.addEventListener('click', () => {
+                    MiniApp.haptic('light');
+                    showPaymentForm(split);
+                });
+
+                listEl.appendChild(card);
+            });
+        }
+
+        function showPaymentForm(split) {
+            selectedSplit = split;
+
+            document.getElementById('selected-description').textContent = split.expense.description || 'No description';
+            document.getElementById('selected-user').textContent = split.user_name;
+            document.getElementById('selected-amount').textContent = MiniApp.formatCurrency(split.amount_owed, currency);
+
+            document.getElementById('splits-list').style.display = 'none';
+            document.getElementById('payment-form').classList.add('visible');
+            document.getElementById('payment-form').style.display = 'block';
+
+            MiniApp.haptic('light');
+        }
+
+        function cancelPayment() {
+            document.getElementById('payment-form').classList.remove('visible');
+            document.getElementById('payment-form').style.display = 'none';
+            document.getElementById('splits-list').style.display = 'flex';
+            selectedSplit = null;
+            slipUpload.reset();
+            MiniApp.haptic('light');
+        }
+
+        async function confirmPayment() {
+            if (!selectedSplit) return;
+
+            const confirmBtn = document.getElementById('confirm-payment-btn');
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Processing...';
+
+            try {
+                const formData = new FormData();
+                formData.append('group_id', groupId);
+                formData.append('split_id', selectedSplit.split_id);
+                formData.append('target_user_id', selectedSplit.user_id);
+
+                if (slipUpload.hasFile()) {
+                    formData.append('transfer_slip', slipUpload.getFile());
+                }
+
+                await MiniApp.apiRequest('/api/admin-mark-paid', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                MiniApp.haptic('success');
+                MiniApp.showPopup('Payment marked successfully!');
+
+                // Remove from list
+                allSplits = allSplits.filter(s => s.split_id !== selectedSplit.split_id);
+
+                cancelPayment();
+
+                if (allSplits.length === 0) {
+                    document.getElementById('splits-list').style.display = 'none';
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    displaySplits();
+                }
+            } catch (error) {
+                MiniApp.showError('Failed to mark payment');
+                console.error(error);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Payment';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

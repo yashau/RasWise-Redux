@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark as Paid - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mark as Paid</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading your unpaid expenses...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">✅</div>
+            <h2>No Pending Expenses</h2>
+            <p>You have no unpaid expenses in this group!</p>
+        </div>
+
+        <div id="expense-list" class="expense-list" style="display: none;"></div>
+
+        <div id="payment-form" class="payment-form">
+            <div class="payment-form-title">
+                <span>💳</span>
+                <span>Payment Confirmation</span>
+            </div>
+
+            <div class="selected-expense-summary" id="expense-summary"></div>
+
+            <div class="form-group">
+                <label>Transfer Slip (Optional)</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="transfer-slip" accept="image/*">
+                    <div>📷 Upload proof of payment</div>
+                    <div class="file-preview" id="slip-preview"></div>
+                </div>
+            </div>
+
+            <button type="button" id="confirm-button" class="submit-button success">Confirm Payment</button>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let expenses = [];
+        let selectedExpense = null;
+        let currency = '$';
+        const transferSlipHandler = new FileUploadHandler('transfer-slip', 'slip-preview');
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/unpaid-expenses?group_id=' + groupId + '&user_id=' + userId);
+                expenses = data.expenses;
+                currency = data.currency || '$';
+
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + groupId;
+                MiniApp.hideLoading();
+
+                if (expenses.length === 0) {
+                    MiniApp.showEmptyState();
+                } else {
+                    displayExpenses();
+                    document.getElementById('expense-list').style.display = 'flex';
+                }
+            } catch (error) {
+                MiniApp.showError('Failed to load expenses');
+                console.error(error);
+            }
+        }
+
+        function displayExpenses() {
+            const listEl = document.getElementById('expense-list');
+
+            expenses.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'expense-card clickable';
+                card.onclick = () => selectExpense(item);
+
+                const header = document.createElement('div');
+                header.className = 'expense-header';
+
+                const idBadge = document.createElement('div');
+                idBadge.className = 'expense-id-badge';
+                idBadge.textContent = '#' + item.expense.group_expense_number;
+
+                const amount = document.createElement('div');
+                amount.className = 'expense-amount';
+                amount.textContent = MiniApp.formatCurrency(item.amount_owed, currency);
+
+                header.appendChild(idBadge);
+                header.appendChild(amount);
+
+                const description = document.createElement('div');
+                description.className = 'expense-description';
+                description.textContent = item.expense.description || 'No description';
+
+                const meta = document.createElement('div');
+                meta.className = 'expense-meta';
+
+                const date = document.createElement('span');
+                date.className = 'meta-item';
+                date.textContent = '📅 ' + MiniApp.formatDate(item.expense.created_at);
+                meta.appendChild(date);
+
+                if (item.expense.location) {
+                    const location = document.createElement('span');
+                    location.className = 'meta-item';
+                    location.textContent = '📍 ' + item.expense.location;
+                    meta.appendChild(location);
+                }
+
+                card.appendChild(header);
+                card.appendChild(description);
+                card.appendChild(meta);
+
+                listEl.appendChild(card);
+            });
+        }
+
+        function selectExpense(item) {
+            selectedExpense = item;
+            MiniApp.haptic('medium');
+
+            // Remove selected class from all cards
+            document.querySelectorAll('.expense-card').forEach(card => card.classList.remove('selected'));
+
+            // Add selected class to clicked card
+            event.currentTarget.classList.add('selected');
+
+            // Show payment form
+            const formEl = document.getElementById('payment-form');
+            formEl.classList.add('visible');
+
+            // Update summary
+            const summaryEl = document.getElementById('expense-summary');
+            summaryEl.innerHTML = `
+                <div class="summary-row">
+                    <span class="summary-label">Expense ID:</span>
+                    <span class="summary-value">#${item.expense.group_expense_number}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Description:</span>
+                    <span class="summary-value">${item.expense.description || 'No description'}</span>
+                </div>
+                ${item.expense.location ? `
+                <div class="summary-row">
+                    <span class="summary-label">Location:</span>
+                    <span class="summary-value">${item.expense.location}</span>
+                </div>
+                ` : ''}
+                <div class="summary-row">
+                    <span class="summary-label">Date:</span>
+                    <span class="summary-value">${MiniApp.formatDate(item.expense.created_at)}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Amount to Pay:</span>
+                    <span class="summary-amount">${MiniApp.formatCurrency(item.amount_owed, currency)}</span>
+                </div>
+            `;
+
+            // Scroll to form
+            formEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        document.getElementById('confirm-button').addEventListener('click', async () => {
+            if (!selectedExpense) {
+                MiniApp.showError('Please select an expense first');
+                return;
+            }
+
+            try {
+                const confirmBtn = document.getElementById('confirm-button');
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Processing...';
+
+                const formData = new FormData();
+                formData.append('split_id', selectedExpense.id);
+                formData.append('paid_to', selectedExpense.expense.paid_by);
+
+                if (transferSlipHandler.hasFile()) {
+                    formData.append('transfer_slip', transferSlipHandler.getFile());
+                }
+
+                await MiniApp.apiRequest('/api/mark-paid', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                MiniApp.haptic('success');
+                window.location.href = `/app.html?group_id=${groupId}`;
+            } catch (error) {
+                MiniApp.showError(error.message || 'Failed to mark expense as paid. Please try again.');
+                const confirmBtn = document.getElementById('confirm-button');
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Confirm Payment';
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

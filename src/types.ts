@@ -5,6 +5,7 @@ export interface Env {
   BOT_TOKEN: string;
   WEBHOOK_DOMAIN: string;
   R2_PUBLIC_URL: string;
+  BOT_USERNAME: string;
 }
 
 export interface User {
@@ -31,6 +32,17 @@ export interface GroupUser {
   user_id: number;
   registered_by: number;
   registered_at: number;
+}
+
+export interface UserGroupMembership {
+  id: number;
+  user_id: number;
+  group_id: number;
+  group_title?: string;
+  group_username?: string;
+  joined_at: number;
+  is_member: number; // 1 = active, 0 = left
+  updated_at: number;
 }
 
 export interface Expense {
@@ -73,6 +85,7 @@ export interface ReminderSettings {
   reminder_time: string;
   last_reminder_sent?: number;
   timezone_offset: number; // Hours offset from UTC (e.g., +5.5, -5)
+  currency: string; // Currency symbol/code (e.g., '$', '₹', 'USD')
 }
 
 // Session data for multi-step operations

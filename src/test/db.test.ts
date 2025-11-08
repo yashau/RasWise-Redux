@@ -75,7 +75,7 @@ describe('Database', () => {
     });
   });
 
-  describe('Payment details operations', () => {
+  describe('Account details operations', () => {
     beforeEach(async () => {
       await db.createUser({
         telegram_id: 123456,
@@ -83,7 +83,7 @@ describe('Database', () => {
       });
     });
 
-    it('should add payment details', async () => {
+    it('should add account details', async () => {
       await db.addAccountDetail(123456, 'bank', {
         account_number: '1234567890'
       });
@@ -95,7 +95,7 @@ describe('Database', () => {
       expect(info.account_number).toBe('1234567890');
     });
 
-    it('should deactivate old payment details when adding new ones', async () => {
+    it('should deactivate old account details when adding new ones', async () => {
       await db.addAccountDetail(123456, 'bank', {
         account_number: '1111111111'
       });
@@ -109,9 +109,20 @@ describe('Database', () => {
       expect(info.account_number).toBe('2222222222');
     });
 
-    it('should return null for user without payment details', async () => {
+    it('should return null for user without account details', async () => {
       const account = await db.getActiveAccountDetail(123456);
       expect(account).toBeNull();
+    });
+
+    it('should support different account types', async () => {
+      await db.addAccountDetail(123456, 'upi', {
+        upi_id: 'test@upi'
+      });
+
+      const account = await db.getActiveAccountDetail(123456);
+      expect(account?.account_type).toBe('upi');
+      const info = JSON.parse(account!.account_info);
+      expect(info.upi_id).toBe('test@upi');
     });
   });
 
@@ -159,14 +170,60 @@ describe('Database', () => {
     });
   });
 
+  describe('User group membership operations', () => {
+    beforeEach(async () => {
+      await db.createUser({ telegram_id: 111, first_name: 'User1' });
+    });
+
+    it('should add group membership', async () => {
+      await db.addOrUpdateGroupMembership(111, -100, 'Test Group', 'testgroup');
+
+      const memberships = await db.getUserGroups(111);
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].group_id).toBe(-100);
+      expect(memberships[0].group_title).toBe('Test Group');
+      expect(memberships[0].group_username).toBe('testgroup');
+      expect(memberships[0].is_member).toBe(1);
+    });
+
+    it('should update existing group membership', async () => {
+      await db.addOrUpdateGroupMembership(111, -100, 'Old Name');
+      await db.addOrUpdateGroupMembership(111, -100, 'New Name', 'newusername');
+
+      const memberships = await db.getUserGroups(111);
+      expect(memberships).toHaveLength(1);
+      expect(memberships[0].group_title).toBe('New Name');
+      expect(memberships[0].group_username).toBe('newusername');
+    });
+
+    it('should remove group membership', async () => {
+      await db.addOrUpdateGroupMembership(111, -100, 'Test Group');
+      await db.removeGroupMembership(111, -100);
+
+      const memberships = await db.getUserGroups(111);
+      expect(memberships).toHaveLength(0);
+    });
+
+    it('should get group members', async () => {
+      await db.createUser({ telegram_id: 222, first_name: 'User2' });
+      await db.addOrUpdateGroupMembership(111, -100);
+      await db.addOrUpdateGroupMembership(222, -100);
+
+      const members = await db.getGroupMembers(-100);
+      expect(members).toHaveLength(2);
+      expect(members).toContain(111);
+      expect(members).toContain(222);
+    });
+  });
+
   describe('Expense operations', () => {
     beforeEach(async () => {
       await db.createUser({ telegram_id: 111, first_name: 'User1' });
       await db.registerUserInGroup(-100, 111, 111);
     });
 
-    it('should create an expense', async () => {
-      const result = await db.createExpense({
+    it('should create an expense with sequential group expense number', async () => {
+      const result1 = await db.createExpense({
         group_id: -100,
         created_by: 111,
         paid_by: 111,
@@ -176,10 +233,20 @@ describe('Database', () => {
         split_type: 'equal'
       });
 
-      expect(result.id).toBeGreaterThan(0);
-      expect(result.group_expense_number).toBe(1);
+      expect(result1.id).toBeGreaterThan(0);
+      expect(result1.group_expense_number).toBe(1);
 
-      const expense = await db.getExpense(result.id);
+      const result2 = await db.createExpense({
+        group_id: -100,
+        created_by: 111,
+        paid_by: 111,
+        amount: 50,
+        split_type: 'equal'
+      });
+
+      expect(result2.group_expense_number).toBe(2);
+
+      const expense = await db.getExpense(result1.id);
       expect(expense).toBeDefined();
       expect(expense?.amount).toBe(100.50);
       expect(expense?.description).toBe('Dinner');

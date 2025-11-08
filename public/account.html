@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>My Bank Account</h1>
+            <p>Manage your bank account information</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading account information...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+
+        <div id="account-form" style="display: none;">
+            <div class="card">
+                <div class="form-group">
+                    <label for="account-number">
+                        Bank Account Number <span class="required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="account-number"
+                        placeholder="Enter your bank account number"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <button id="save-btn" class="button">
+                    Save Account Information
+                </button>
+            </div>
+
+            <div id="current-account" class="card" style="display: none; margin-top: 1rem;">
+                <div style="font-size: 0.875rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.5rem;">
+                    Current Account
+                </div>
+                <div id="current-account-number" style="font-family: monospace; font-size: 1rem; font-weight: 600; cursor: pointer; user-select: text;" title="Click to copy">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let currentAccount = null;
+
+        async function init() {
+            if (!userId) {
+                MiniApp.showError('Unable to identify user');
+                return;
+            }
+
+            // Setup back button
+            if (groupId) {
+                MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+            } else {
+                MiniApp.setupBackButton(`/app.html`);
+            }
+
+            try {
+                const data = await MiniApp.apiRequest('/api/account-info');
+
+                MiniApp.hideLoading();
+                document.getElementById('account-form').style.display = 'block';
+
+                if (data.has_account) {
+                    currentAccount = data.account_number;
+                    document.getElementById('account-number').value = data.account_number;
+                    const accountNumEl = document.getElementById('current-account-number');
+                    accountNumEl.textContent = data.account_number;
+                    accountNumEl.onclick = () => {
+                        navigator.clipboard.writeText(data.account_number).then(() => {
+                            MiniApp.haptic('success');
+                            MiniApp.showPopup('Account number copied!');
+                        }).catch(err => {
+                            console.error('Failed to copy:', err);
+                        });
+                    };
+                    document.getElementById('current-account').style.display = 'block';
+                }
+
+                // Setup save button
+                document.getElementById('save-btn').addEventListener('click', saveAccount);
+            } catch (error) {
+                MiniApp.hideLoading();
+                MiniApp.showError('Failed to load account information');
+                console.error(error);
+            }
+        }
+
+        async function saveAccount() {
+            const accountNumber = document.getElementById('account-number').value.trim();
+
+            if (!accountNumber) {
+                MiniApp.showError('Please enter your bank account number');
+                return;
+            }
+
+            const saveBtn = document.getElementById('save-btn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            try {
+                await MiniApp.apiRequest('/api/set-account', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        account_number: accountNumber
+                    })
+                });
+
+                MiniApp.haptic('success');
+
+                // Show success message
+                const successEl = document.getElementById('success');
+                successEl.textContent = 'Account information saved successfully!';
+                successEl.style.display = 'block';
+
+                // Update current account display
+                currentAccount = accountNumber;
+                const accountNumEl = document.getElementById('current-account-number');
+                accountNumEl.textContent = accountNumber;
+                accountNumEl.onclick = () => {
+                    navigator.clipboard.writeText(accountNumber).then(() => {
+                        MiniApp.haptic('success');
+                        MiniApp.showPopup('Account number copied!');
+                    }).catch(err => {
+                        console.error('Failed to copy:', err);
+                    });
+                };
+                document.getElementById('current-account').style.display = 'block';
+
+                // Hide success message after 3 seconds
+                setTimeout(() => {
+                    successEl.style.display = 'none';
+                }, 3000);
+            } catch (error) {
+                MiniApp.showError('Failed to save account information');
+                console.error(error);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Account Information';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

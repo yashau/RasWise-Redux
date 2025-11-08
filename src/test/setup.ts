@@ -73,7 +73,9 @@ export async function createTestEnv() {
       KV: kv as any,
       BILLS_BUCKET: r2 as any,
       BOT_TOKEN: 'test_bot_token',
-      WEBHOOK_DOMAIN: 'https://test.example.com'
+      WEBHOOK_DOMAIN: 'https://test.example.com',
+      R2_PUBLIC_URL: 'https://test-r2.example.com',
+      BOT_USERNAME: 'test_bot'
     } as unknown as Env
   };
 }

@@ -1,20 +1,36 @@
 # RasWise Redux
 
-A Telegram bot for splitting expenses among group members, built on Cloudflare Workers.
+A Telegram Mini App for splitting expenses among group members, built on Cloudflare Workers.
 
-## Features
+## Overview
 
-- **User Registration**: Register users in group chats to track their expenses
-- **Admin Controls**: Unregister users and mark payments on behalf of others (admin only)
-- **Payment Details**: Users can set and update their bank account details
-- **Expense Tracking**: Add expenses with amount, description, location, and bill photos
-- **Vendor Payment Slips**: Upload proof of payment to vendors/restaurants
+RasWise Redux is a modern expense-splitting bot that runs as a **Telegram Mini App**, providing a native app-like experience directly within Telegram. Users interact through an intuitive web interface that launches from the bot, eliminating the need for traditional slash commands and creating a seamless mobile experience.
+
+## Key Features
+
+### Mini App Interface
+- **Native App Experience**: Full-featured web app that runs inside Telegram
+- **No Commands Needed**: All interactions through buttons, forms, and touch-friendly UI
+- **Multi-Group Support**: Easily switch between different group chats
+- **Real-Time Updates**: Instant synchronization with the backend
+- **Responsive Design**: Optimized for mobile devices
+
+### Core Functionality
+- **User Management**: View registered users and their account status
+- **Expense Tracking**: Add expenses with descriptions, locations, and photo attachments
 - **Flexible Splitting**: Split bills equally or set custom amounts per person
-- **Payment Tracking**: Track who owes what and mark expenses as paid with optional transfer slips
-- **Comprehensive History**: View expense history with all attachments and payment records
-- **Timezone Support**: Configure group-specific timezones for accurate date/time display
-- **Daily Reminders**: Automatic daily reminders for pending expenses
-- **Privacy First**: All personal financial information sent via DM
+- **Payment Tracking**: Mark expenses as paid with optional proof of payment
+- **Photo Attachments**: Support for bill photos, vendor payment slips, and transfer receipts
+- **Payment History**: Comprehensive history of all transactions and payments
+- **Summary Views**: See who owes what at a glance
+- **Group Settings**: Configure timezone, currency, and reminder preferences
+- **Admin Controls**: Special permissions for group admins
+
+### Privacy & Security
+- **Secure Authentication**: Telegram Web App authentication with signature validation
+- **Private Data**: Personal financial information only visible to relevant users
+- **Edge Computing**: Fast response times with global Cloudflare Workers
+- **Data Isolation**: Each group's data is completely separate
 
 ## Tech Stack
 
@@ -23,263 +39,159 @@ A Telegram bot for splitting expenses among group members, built on Cloudflare W
 - **Database**: Cloudflare D1 (SQLite)
 - **Storage**: Cloudflare R2 (for bill photos, vendor slips, transfer receipts)
 - **Session Management**: Cloudflare KV
+- **Frontend**: Vanilla JavaScript with Telegram Mini App SDK
 - **Language**: TypeScript with strict typing
-- **Testing**: Vitest + Miniflare (92 tests, 98.44% coverage)
+- **Testing**: Vitest + Miniflare (83 tests, 4 test suites)
 
-## Complete Bot Workflow
+## Mini App Features
 
-### 1. Initial Setup (One-time)
+### Home Screen (`app.html`)
+Central dashboard showing:
+- Quick actions (Add Expense, Pay, View Summary, etc.)
+- Recent expense notifications
+- Pending payment reminders
+- Easy navigation to all features
 
-```mermaid
-graph TD
-    A[Create Telegram Group] --> B[Add Bot to Group]
-    B --> C[Register Users with /register]
-    C --> D[Users Set Bank Account with /setaccount]
-    D --> E[Optional: Enable Reminders with /setreminder]
-```
+### Add Expense (`addexpense.html`)
+Interactive form for creating expenses:
+- Amount input with currency display
+- Optional description and location
+- Photo upload for bills and vendor payment slips
+- User selection with visual checkboxes
+- Payer selection
+- Equal or custom split options
+- Real-time validation and feedback
 
-### 2. Adding an Expense
+### My Expenses (`myexpenses.html`)
+View your financial obligations:
+- List of unpaid expenses with amounts
+- Payment history with transfer slips
+- Total pending and paid amounts
+- Direct links to pay or view details
+- Grouped by status
 
-**Command**: `/addexpense` (in group chat)
+### Payment Interface (`pay.html`)
+Streamlined payment flow:
+- Select expense to pay
+- View payment details and recipient account info
+- Upload transfer slip as proof
+- Instant confirmation and notifications
 
-The bot guides you through an 8-step interactive flow:
+### Summary View (`summary.html`)
+Financial overview:
+- Total unpaid and paid amounts
+- Breakdown by person (who you owe)
+- Number of pending expenses
+- Quick links to relevant actions
 
-```
-Step 1: Amount
-├─ Enter the total expense amount (e.g., 300.00)
-│
-Step 2: Description (Optional)
-├─ Enter a description (e.g., "Team lunch at Pizza Place")
-├─ OR click "Skip"
-│
-Step 3: Location (Optional)
-├─ Enter location (e.g., "123 Main St, Downtown")
-├─ OR click "Skip"
-│
-Step 4: Bill Photo (Optional)
-├─ Upload a photo of the receipt/bill
-├─ OR click "Skip"
-│
-Step 5: Vendor Payment Slip (Optional)
-├─ Upload proof that you paid the vendor/restaurant
-├─ (e.g., bank transfer receipt, payment confirmation)
-├─ OR click "Skip"
-│
-Step 6: Select Users
-├─ Click usernames to toggle selection
-├─ OR click "All Users" to select everyone
-├─ Click "Continue" when done
-│
-Step 7: Who Paid?
-├─ Select who fronted the money
-├─ (This person will receive payments from others)
-│
-Step 8: Split Type
-├─ Equal Split: Divide equally among selected users
-├─ OR Custom Split: Specify amount for each person
-```
+### History (`history.html`)
+Group expense history:
+- Chronological list of all expenses
+- View attachments (bills, vendor slips)
+- Payment status indicators
+- Filter and search capabilities
 
-**Important Notes**:
-- The person who paid (Step 7) is automatically excluded from owing money
-- Only the people who need to pay back are included in the split
-- All photos are optional but helpful for record-keeping
+### Owed to You (`owed.html`)
+Track incoming payments:
+- Who owes you money
+- Breakdown by expense
+- Total pending and received amounts
+- Payment status for each person
 
-**Example**:
-```
-Scenario: Team lunch costs 300, Alice paid, splitting with Bob and Charlie
+### User Management (`users.html`)
+Group member list:
+- View all registered users
+- See account status indicators
+- Check who has set up payment details
 
-Step 1: 300
-Step 2: Team lunch
-Step 3: Pizza Place
-Step 4: [uploads bill photo]
-Step 5: [uploads bank transfer to restaurant]
-Step 6: Select Alice, Bob, Charlie → Continue
-Step 7: Select "Alice" (who paid)
-Step 8: Equal Split
+### Account Settings (`account.html`)
+Personal financial setup:
+- Set/update bank account number
+- View saved payment details
+- Privacy information
 
-Result:
-- Bob owes Alice: 100
-- Charlie owes Alice: 100
-- Alice owes: 0 (she paid)
-```
+### Group Settings (`settings.html`)
+Configure group preferences (admin only):
+- Toggle daily reminders on/off
+- Set timezone for the group
+- Choose currency symbol
+- View last reminder sent timestamp
 
-### 3. Viewing Your Expenses
+## How It Works
 
-**Command**: `/myexpenses` (in group or DM)
+### Getting Started
 
-Displays two sections in your DM:
+1. **Add the Bot to Your Group**
+   - Search for `@raswise_bot` on Telegram
+   - Add it to your group chat
+   - Grant necessary permissions
+   - Users are automatically registered when they send any message in the group
 
-**Section A: Pending Expenses**
-```
-*Your Pending Expenses:*
+2. **Open the Mini App**
+   - Click the bot's name or type `@raswise_bot`
+   - Tap "Open App" or use the menu button
+   - The Mini App launches inside Telegram
 
-*Expense #123*
-Total amount: 300.00
-Amount you owe: 100.00
-Description: Team lunch
-Location: Pizza Place
-Bill photo: [View]
-Vendor slip: [View]
-Fronted by: Alice
-Date: 2025/01/15
+3. **Start Splitting Expenses**
+   - Tap "Add Expense"
+   - Fill in the details
+   - Select who's involved
+   - Choose split method
+   - Done!
 
-Total pending: 100.00
-```
+### Typical Workflow
 
-**Section B: Payment History**
-```
-━━━━━━━━━━━━━━━━
+**Scenario: Team lunch costs $300, Alice pays**
 
-*Your Payment History:*
+1. Alice opens the Mini App and taps "Add Expense"
+2. Enters amount: 300
+3. Description: "Team lunch at Pizza Place"
+4. Uploads photo of the restaurant bill
+5. Uploads proof of payment to restaurant
+6. Selects team members: Alice, Bob, Charlie
+7. Marks herself as the payer
+8. Chooses "Equal Split"
+9. Bob and Charlie each owe Alice $100 (300 ÷ 3 = $100 per person)
 
-*Payment #45*
-Amount paid: 50.00
-Paid to: John
-For: Coffee supplies
-Location: Starbucks
-Transfer slip: [View]
-Date: 2025/01/14
+**Bob paying back Alice:**
 
-Total paid: 50.00
-```
+1. Bob opens the Mini App
+2. Goes to "My Expenses"
+3. Sees he owes Alice $100
+4. Taps "Pay"
+5. Views Alice's account number
+6. Makes bank transfer
+7. Uploads screenshot of transfer
+8. Marks as paid
+9. Alice receives notification
 
-### 4. Marking an Expense as Paid
 
-**Command**: `/pay`
+## Setup & Deployment
 
-```
-Step 1: Select Expense
-├─ Bot shows list of your unpaid expenses
-├─ Click on the expense you want to mark as paid
-│
-Step 2: View Payment Details
-├─ Bot shows:
-│   • Amount to pay
-│   • Recipient's name
-│   • Recipient's bank account number
-│   • Expense description
-│
-Step 3: Make Payment
-├─ Use your banking app to transfer money
-│
-Step 4: Confirm Payment
-├─ Click "I've Paid This"
-│
-Step 5: Upload Transfer Slip (Optional)
-├─ Upload a photo of your bank transfer receipt
-├─ OR click "Skip"
-│
-Step 6: Confirmation
-├─ Expense marked as paid
-├─ Recipient gets notification
-├─ Your payment recorded in history
-```
-
-### 5. Viewing Group History
-
-**Command**: `/history` (in group chat)
-
-Displays recent expenses in your DM:
-```
-*Recent Expense History:*
-
-*Expense #123*
-   Amount: 300.00
-   Description: Team lunch
-   Bill photo: [View]
-   Vendor slip: [View]
-   By: Alice | 2025/01/15
-   Split: equal among 3 user(s)
-   Status: 2/2 paid
-
-*Expense #122*
-   Amount: 150.00
-   Description: Office supplies
-   By: Bob | 2025/01/14
-   Split: custom among 2 user(s)
-   Status: 1/2 paid
-```
-
-### 6. Viewing Your Summary
-
-**Command**: `/summary` (in group chat)
-
-Shows cumulative statistics in your DM:
-```
-*Your Expense Summary:*
-
-*Total Unpaid:* 150.00
-*Total Paid:* 300.00
-*Pending Expenses:* 3
-
-*You owe:*
-  • Alice: 100.00 (2 expenses)
-  • Bob: 50.00 (1 expense)
-```
-
-### 7. Viewing Who Owes You
-
-**Command**: `/owed` (in group or DM)
-
-Shows money owed to you (sent via DM):
-```
-*Payments Owed to You:*
-
-Total Pending: 200.00
-Total Received: 500.00
-
-*Breakdown:*
-
-Bob:
-  Amount: 100.00
-  Expenses: #123, #125
-
-Charlie:
-  Amount: 100.00
-  Expenses: #123, #124
-```
-
-### 8. Daily Reminders
-
-If enabled with `/setreminder`:
-```
-Daily at 10:00 AM UTC:
-├─ Bot checks for groups with unpaid expenses
-├─ Sends reminder to each user with unpaid expenses:
-│
-"*Daily Reminder*
-
-You have 2 pending expenses
-Total owed: 175.00
-
-Use /myexpenses to see details
-Use /pay to mark as paid"
-```
-
-## Setup Instructions
-
-### 1. Prerequisites
+### Prerequisites
 
 - Node.js 18+ installed
 - A Cloudflare account
 - A Telegram Bot Token (get one from [@BotFather](https://t.me/botfather))
+- Your bot's username (set in BotFather)
 
-### 2. Install Dependencies
+### Installation
 
+1. **Clone and Install**
 ```bash
+git clone <your-repo-url>
+cd RasWise-Redux
 npm install
 ```
 
-### 3. Create Cloudflare Resources
+2. **Create Cloudflare Resources**
 
-#### Create D1 Database
-
+Create D1 Database:
 ```bash
 npx wrangler d1 create raswise_db
 ```
 
-Copy the database ID and update `wrangler.toml`:
-
+Copy the database ID to [wrangler.toml](wrangler.toml:13):
 ```toml
 [[d1_databases]]
 binding = "DB"
@@ -287,311 +199,259 @@ database_name = "raswise_db"
 database_id = "YOUR_DATABASE_ID_HERE"
 ```
 
-#### Create Database Schema
-
+Initialize the schema:
 ```bash
 npx wrangler d1 execute raswise_db --file=./schema.sql
 ```
 
-#### Create KV Namespace
-
+Create KV namespace:
 ```bash
 npx wrangler kv namespace create "raswise_kv"
 ```
 
-Update `wrangler.toml` with the KV namespace ID:
-
+Update [wrangler.toml](wrangler.toml:18) with the KV ID:
 ```toml
 [[kv_namespaces]]
 binding = "KV"
 id = "YOUR_KV_ID_HERE"
 ```
 
-#### Create R2 Bucket
-
+Create R2 bucket:
 ```bash
 npx wrangler r2 bucket create raswise-bills
 ```
 
-The bucket name is already configured in `wrangler.toml`.
+3. **Configure Environment**
 
-### 4. Set Bot Token as Secret
-
+Set your bot token as a secret:
 ```bash
 npx wrangler secret put BOT_TOKEN
 ```
 
-When prompted, paste your Telegram Bot Token.
-
-### 5. Deploy to Cloudflare Workers
-
-```bash
-npm run deploy
-```
-
-After deployment, you'll get a worker URL like `https://raswise-redux.YOUR_SUBDOMAIN.workers.dev`
-
-### 6. Set Up Telegram Webhook
-
-Update `wrangler.toml` with your worker domain:
-
+Update [wrangler.toml](wrangler.toml:28) with your settings:
 ```toml
 [vars]
-WEBHOOK_DOMAIN = "https://raswise-redux.YOUR_SUBDOMAIN.workers.dev"
+WEBHOOK_DOMAIN = "https://your-worker.workers.dev"
+R2_PUBLIC_URL = "https://your-r2-public-url.com"
+BOT_USERNAME = "your_bot_username"
 ```
 
-Then set the webhook:
-
-```bash
-curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://raswise-redux.YOUR_SUBDOMAIN.workers.dev/webhook"
-```
-
-### 7. Set Up Daily Reminders (Optional)
-
-Add a cron trigger to `wrangler.toml`:
-
-```toml
-[triggers]
-crons = ["0 10 * * *"]  # Runs at 10:00 AM UTC daily
-```
-
-Redeploy:
-
+4. **Deploy**
 ```bash
 npm run deploy
 ```
 
-## Bot Commands Reference
+5. **Set Up the Mini App in BotFather**
 
-### User Management
-- `/start` - Get started and see all commands
-- `/help` - Show help message with all commands
-- `/register` - Register a user in the group (reply to their message)
-- `/unregister` - Unregister a user from the group (admin only)
-  - `/unregister` (reply to user's message)
-  - `/unregister @username`
-  - `/unregister username`
-- `/listusers` - List all registered users in the group
-- `/setaccount` - Set or update your bank account number (sent via DM)
-- `/viewaccount` - View your saved bank account (sent via DM)
-- `/accountinfo` - View all users' bank account information in the group
-
-### Expense Management
-- `/addexpense` - Start adding a new expense (8-step interactive flow)
-- `/myexpenses` - View your pending expenses and payment history (sent via DM)
-- `/summary` - View your cumulative expense summary (sent via DM)
-- `/history` - View group expense history with attachments (sent via DM)
-
-### Payments
-- `/pay` - Mark an expense as paid with optional transfer slip
-- `/adminpay` - Mark payment on behalf of another user (admin only)
-- `/owed` - See who owes you money (sent via DM)
-
-### Reminders & Settings
-- `/setreminder` - Toggle daily reminders on/off for the group
-- `/reminderstatus` - Check if reminders are enabled
-- `/settimezone` - Set group timezone for accurate date/time display (admin only)
-- `/viewtimezone` - View current group timezone
-
-## Key Features Explained
-
-### 📷 Three Types of Photos
-
-1. **Bill Photo** (Step 4 of expense creation)
-   - Photo of the receipt from vendor
-   - Helps verify expense amount and items
-
-2. **Vendor Payment Slip** (Step 5 of expense creation)
-   - Proof that the person who fronted actually paid the vendor
-   - E.g., bank transfer confirmation to restaurant
-   - Shows in expense history with 🧾 icon
-
-3. **Transfer Slip** (when marking expense as paid)
-   - Proof that you paid the person who fronted
-   - Shows in your personal payment history with 📷 icon
-   - Recipient gets notification with attachment
-
-### 👮 Admin Controls
-
-Group admins (creators and administrators) have special permissions:
-
-**Admin-Only Commands:**
-- `/unregister` - Remove users from the group (only if they have no pending expenses)
-  - Works with reply-to-message, @username, or plain username
-  - Can unregister users even if they've left the group
-- `/adminpay` - Mark payments as paid on behalf of other users
-  - Requires reply-to-message pattern
-- `/settimezone` - Set the group's timezone for accurate date/time display
-
-**How to Use:**
-- `/adminpay` uses reply-to-message pattern
-- `/unregister` supports three formats:
-  - Reply to the user's message and use `/unregister`
-  - Use `/unregister @username`
-  - Use `/unregister username`
-- The bot will verify your admin status before executing
-
-**Unregister Restrictions:**
-- Cannot unregister users with pending unpaid expenses
-- Bot will show the exact amount and number of pending expenses
-- User must pay all debts before they can be unregistered
-
-**Admin Mark Paid Flow:**
-1. Reply to target user's message with `/adminpay`
-2. Bot shows list of that user's pending expenses
-3. Select the expense to mark as paid
-4. Bot marks it paid and notifies both the payer and the user
-
-### 🔒 Privacy Protection
-
-All personal financial information is sent via **Direct Message** to protect user privacy:
-- `/myexpenses` - Your pending debts and payment history
-- `/summary` - Your financial summary
-- `/owed` - Money owed to you
-- `/history` - Group expense history
-
-Only group-level actions happen in the group chat:
-- User registration
-- Adding expenses
-- Group settings
-- Admin actions
-
-### 💡 Smart Split Logic
-
-**The person who paid is automatically excluded from the split:**
-
-Example with Equal Split:
+Talk to [@BotFather](https://t.me/botfather) on Telegram:
 ```
-Total: 300
-Paid by: Alice
-Users: Alice, Bob, Charlie (3 people)
-
-Split calculation:
-- Alice: 0 (she paid)
-- Bob: 150 (300 ÷ 2)
-- Charlie: 150 (300 ÷ 2)
+/setmenubutton
+<select your bot>
+<button text: Open App>
+<web app url: https://your-worker.workers.dev/app.html>
 ```
 
-Example with Custom Split:
+Also set the bot's web app:
 ```
-Total: 300
-Paid by: Alice
-Users: Alice, Bob, Charlie
-
-Custom amounts entered:
-- Bob: 200
-- Charlie: 100
-- Alice: Not asked (she paid)
+/newapp
+<select your bot>
+<title: RasWise>
+<description: Split expenses with friends>
+<photo: upload an icon>
+<web app url: https://your-worker.workers.dev/app.html>
 ```
 
-## Development
+6. **Set Webhook**
 
-### Run Locally
+The bot will automatically set up the webhook on first deployment, but you can verify:
+```bash
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-worker.workers.dev/webhook"
+```
 
+### Development
+
+Run locally with hot reload:
 ```bash
 npm run dev
 ```
 
-This starts a local development server. You'll need to use a tool like ngrok to expose it to Telegram for testing.
+For testing the Mini App locally, you'll need to:
+1. Use ngrok or cloudflared to expose your local server
+2. Update the webhook URL to your tunnel URL
+3. Set the menu button in BotFather to your tunnel URL
+
+## Testing
 
 ### Run Tests
-
 ```bash
 # Run all tests
 npm test
 
-# Run tests with coverage report
+# Run with coverage
 npm run test:coverage
 
-# Type check
+# Type checking
 npm run typecheck
 ```
 
 ### Test Coverage
-- **92 tests** covering all core functionality including:
-  - User registration and unregistration
-  - Payment details management
-  - Expense creation with equal/custom splits
-  - Payment tracking and history
-  - Admin controls (unregister, mark paid on behalf)
-  - Reminder settings and timezone management
-  - Date formatting with timezone offsets
-  - Session management
-- **98.44% overall coverage** (100% on db.ts and utils.ts)
-- Tests use actual production schema.sql
-- Miniflare provides realistic Cloudflare Workers environment
 
-### Test Breakdown
-- `src/test/utils.test.ts` - 32 tests for utility functions
+The project has **83 tests** across **4 test suites**:
+
+- **[src/test/utils.test.ts](src/test/utils.test.ts)** - Utility function tests
   - Date/datetime formatting with timezone support
   - User name formatting
   - Amount formatting
-  - DM fallback handling
-  - Session save/get operations
-- `src/test/db.test.ts` - 39 tests for database operations
+  - Session management
+
+- **[src/test/db.test.ts](src/test/db.test.ts)** - Database operations
   - User CRUD operations
-  - Payment details management
   - Group registration
-  - Expense and split creation
+  - Expense creation and management
   - Payment recording and history
   - Summary calculations
-  - Reminder settings
-  - Timezone operations
-  - Unregister with validation
-- `src/test/handlers.test.ts` - 21 integration tests
-  - End-to-end registration flows
-  - Expense creation and payment workflows
-  - Summary and history generation
-  - Reminder system functionality
-  - Edge case handling
+  - Reminder and timezone settings
 
-### Generate TypeScript Types
+- **[src/test/reminders.test.ts](src/test/reminders.test.ts)** - Reminder system
+  - Daily reminder scheduling
+  - Reminder settings per group
+  - Notification delivery
 
-```bash
-npm run cf-typegen
+- **[src/test/telegram-auth.test.ts](src/test/telegram-auth.test.ts)** - Authentication
+  - Telegram Web App data validation
+  - Signature verification
+  - User data parsing
+
+All tests use the actual production [schema.sql](schema.sql) and Miniflare for a realistic Cloudflare Workers environment.
+
+## Project Structure
+
 ```
+RasWise-Redux/
+├── public/                 # Mini App frontend
+│   ├── app.html           # Main dashboard
+│   ├── addexpense.html    # Add expense form
+│   ├── myexpenses.html    # User's expenses
+│   ├── pay.html           # Payment interface
+│   ├── summary.html       # Financial summary
+│   ├── history.html       # Group history
+│   ├── owed.html          # Payments owed to user
+│   ├── users.html         # User management
+│   ├── account.html       # Account settings
+│   ├── settings.html      # Group settings
+│   ├── adminpay.html      # Admin payment marking
+│   ├── miniapp.css        # Shared styles
+│   └── miniapp.js         # Shared JavaScript utilities
+├── src/
+│   ├── index.ts           # Main worker entry point
+│   ├── api-handlers.ts    # API endpoints for Mini App
+│   ├── db.ts              # Database operations
+│   ├── telegram-auth.ts   # Telegram Web App auth validation
+│   ├── types.ts           # TypeScript type definitions
+│   ├── utils.ts           # Utility functions
+│   ├── handlers/
+│   │   └── reminders.ts   # Reminder system
+│   └── test/
+│       ├── db.test.ts
+│       ├── utils.test.ts
+│       ├── reminders.test.ts
+│       └── telegram-auth.test.ts
+├── schema.sql             # Database schema
+├── wrangler.toml          # Cloudflare Workers config
+├── package.json
+└── tsconfig.json
+```
+
+## API Endpoints
+
+The Mini App communicates with the backend through these API endpoints:
+
+- `GET /api/user-groups` - Get user's groups
+- `GET /api/group-users` - Get registered users in a group
+- `GET /api/unpaid-expenses` - Get unpaid expenses for a user
+- `GET /api/user-expenses` - Get all expenses for a user
+- `GET /api/summary` - Get financial summary for a user
+- `GET /api/history` - Get group expense history
+- `GET /api/owed` - Get payments owed to a user
+- `POST /api/add-expense` - Create a new expense
+- `POST /api/mark-paid` - Mark an expense as paid
+- `POST /api/admin-pay` - Admin mark payment (admin only)
+- `GET /api/group-settings` - Get group settings
+- `POST /api/update-reminders` - Update reminder settings
+- `POST /api/update-timezone` - Update group timezone
+- `POST /api/update-currency` - Update group currency
+
+All API requests are authenticated using Telegram Web App data validation.
 
 ## Database Schema
 
-The bot uses the following tables:
+### Core Tables
 
-- **`users`** - Registered users with Telegram ID, username, and name
-- **`account_details`** - User account information (bank accounts)
-- **`group_users`** - User-group registration mapping
-- **`expenses`** - Expense records with amount, description, location, photos
-  - `photo_url` - Bill/receipt photo
-  - `vendor_payment_slip_url` - Proof of payment to vendor
-- **`expense_splits`** - Individual split amounts per user
-- **`payments`** - Payment transaction history
-  - `transfer_slip_url` - Proof of payment between users
+- **`users`** - Registered Telegram users
+  - `id`, `telegram_id`, `username`, `first_name`, `last_name`
+
+- **`account_details`** - User payment information
+  - `user_id`, `account_number`, `updated_at`
+
+- **`group_users`** - User-group relationships
+  - `group_id`, `user_id`, `registered_at`
+
+- **`expenses`** - Expense records
+  - `id`, `group_id`, `paid_by_user_id`, `total_amount`
+  - `description`, `location`, `created_at`
+  - `photo_url`, `vendor_payment_slip_url`
+  - `split_type` (equal/custom)
+
+- **`expense_splits`** - Individual split amounts
+  - `expense_id`, `user_id`, `amount_owed`, `paid`
+
+- **`payments`** - Payment transaction records
+  - `expense_id`, `payer_id`, `amount`, `paid_at`
+  - `transfer_slip_url`, `marked_by_admin`
+
 - **`reminder_settings`** - Group reminder preferences
+  - `group_id`, `enabled`, `last_reminder_sent`
+
+- **`group_timezones`** - Group timezone settings
+  - `group_id`, `timezone_offset`
+
+- **`group_currencies`** - Group currency settings
+  - `group_id`, `currency`
 
 ### Storage Structure (R2 Bucket)
 
 ```
 raswise-bills/
-├── bills/{groupId}/{timestamp}_{fileId}.jpg          # Bill photos
-├── vendor_slips/{groupId}/{timestamp}_{fileId}.jpg   # Vendor payment proofs
-└── transfer_slips/{userId}/{timestamp}_{fileId}.jpg  # User transfer receipts
+├── bills/{groupId}/{timestamp}_{fileId}.jpg
+├── vendor_slips/{groupId}/{timestamp}_{fileId}.jpg
+└── transfer_slips/{userId}/{timestamp}_{fileId}.jpg
 ```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────┐
-│       Telegram Bot API              │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────┐
-│    Cloudflare Workers                │
-│    ┌─────────────────────┐          │
-│    │   Bot Logic         │          │
-│    │   - Command Handlers│          │
-│    │   - Session Manager │          │
-│    │   - Photo Processor │          │
-│    └──────┬───┬───┬──────┘          │
-└───────────┼───┼───┼──────────────────┘
+│       Telegram Users                │
+└───────────────┬─────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────┐
+│    Telegram Mini App (Frontend)    │
+│    - HTML/CSS/JavaScript            │
+│    - Telegram Web App SDK           │
+│    - Responsive UI                  │
+└───────────────┬─────────────────────┘
+                │ HTTPS + Auth
+                ▼
+┌─────────────────────────────────────┐
+│    Cloudflare Workers               │
+│    ┌─────────────────────┐         │
+│    │   Main Worker       │         │
+│    │   - API Handlers    │         │
+│    │   - Auth Validation │         │
+│    │   - Bot Commands    │         │
+│    └──────┬───┬───┬──────┘         │
+└───────────┼───┼───┼─────────────────┘
             │   │   │
       ┌─────┘   │   └─────┐
       ▼         ▼         ▼
@@ -599,663 +459,69 @@ raswise-bills/
    │ D1 │    │ KV │    │ R2 │
    └────┘    └────┘    └────┘
    SQLite    Session   Photos
-   Database  State     Storage
+   Database  Storage   Storage
 ```
 
-## Common Use Cases
+## Key Implementation Details
 
-### Case 1: Restaurant Bill with Multiple Diners
+### Authentication Flow
 
-```
-Scenario: 5 friends at dinner, Alice pays $250 bill
-
-1. Alice: /addexpense
-2. Enter: 250
-3. Description: "Dinner at Italian Restaurant"
-4. Upload: Photo of bill
-5. Upload: Bank transfer receipt to restaurant
-6. Select: All 5 friends
-7. Paid by: Alice
-8. Split: Equal
-
-Result:
-- Each of the other 4 friends owes Alice $62.50
-- Alice owes nothing
-- Everyone can see bill photo and payment proof
-```
-
-### Case 2: Shared Grocery Shopping
-
-```
-Scenario: Bob bought groceries for 3 roommates, custom split
-
-1. Bob: /addexpense
-2. Enter: 120
-3. Description: "Weekly groceries"
-4. Skip: location
-5. Upload: Receipt photo
-6. Skip: vendor slip
-7. Select: Alice, Bob, Charlie
-8. Paid by: Bob
-9. Split: Custom
-   - Alice: 40 (she requested extra items)
-   - Charlie: 80 (he requested premium items)
-
-Result:
-- Alice owes Bob $40
-- Charlie owes Bob $80
-- Bob owes nothing
-```
-
-### Case 3: Tracking Payments
-
-```
-Scenario: Charlie paying back Bob for groceries
-
-1. Charlie: /pay
-2. Select: Expense #145 (Weekly groceries)
-3. View: Bob's account number displayed
-4. Charlie transfers $80 via banking app
-5. Click: "I've Paid This"
-6. Upload: Screenshot of transfer confirmation
-7. Done!
-
-Result:
-- Expense marked as paid
-- Bob receives notification
-- Transfer slip saved in Charlie's payment history
-- Charlie can view this payment in /myexpenses history section
-```
-
-## Example Bot Messages
-
-### Starting the Bot
-
-**User**: `/start`
-
-**Bot**:
-```
-Welcome to RasWise Redux!
-
-I help you split expenses with your friends.
-
-Available commands:
-/register - Register a user in a group
-/unregister - Unregister a user (admin)
-/listusers - List registered users
-/setaccount - Set your bank account
-/viewaccount - View your bank account
-/addexpense - Add a new expense
-/myexpenses - View your pending expenses
-/summary - View your expense summary
-/history - View group expense history
-/pay - Mark an expense as paid
-/adminpay - Mark payment on behalf of user (admin)
-/owed - See who owes you money
-/setreminder - Toggle daily reminders
-/settimezone - Set group timezone (admin)
-/viewtimezone - View current timezone
-/help - Show this help message
-```
-
-### Registering a User
-
-**Alice**: Hi everyone!
-
-**Bob** (replying to Alice): `/register`
-
-**Bot**:
-```
-*Success:* Alice has been registered in this group!
-```
-
-### Setting Bank Account
-
-**User**: `/setaccount`
-
-**Bot**:
-```
-Please send your bank account number:
-```
-
-**User**: `1234567890`
-
-**Bot**:
-```
-*Success:* Your payment details have been saved!
-
-Bank Account: 1234567890
-
-You can update this anytime with /setaccount
-```
-
-### Adding an Expense (Full Flow)
-
-**User**: `/addexpense`
-
-**Bot**:
-```
-Step 1: Enter the total amount for this expense:
-```
-
-**User**: `300`
-
-**Bot**:
-```
-Step 2: Enter a description for this expense (optional):
-```
-
-**User**: `Team lunch at Pizza Place`
-
-**Bot**:
-```
-Step 3: Enter the location (optional):
-```
-
-**User**: _clicks "Skip"_
-
-**Bot**:
-```
-Step 4: Send a photo of the bill/receipt (optional)
-```
-
-**User**: _uploads photo_
-
-**Bot**:
-```
-Step 5: Send a photo of your payment slip to the vendor (bank transfer receipt, etc.)
-
-(Optional - this is proof that you paid the vendor/restaurant)
-```
-
-**User**: _uploads payment slip_
-
-**Bot**:
-```
-Step 6: Select the users to split this expense with:
-
-(Click users to toggle selection, then click Continue)
-
-[Alice] [Bob]
-[Charlie] [Dave]
-[All Users]
-[Continue]
-```
-
-**User**: _selects Alice, Bob, Charlie, then clicks "Continue"_
-
-**Bot**:
-```
-Selected 3 user(s) to split with.
-
-Step 7: Who paid the full amount?
-
-[Alice (You)] [Bob]
-[Charlie]
-```
-
-**User**: _clicks "Alice (You)"_
-
-**Bot**:
-```
-Paid by: Alice
-
-Step 8: How should the bill be split?
-
-[Equal Split]
-[Custom Split]
-```
-
-**User**: _clicks "Equal Split"_
-
-**Bot**:
-```
-*Success:* Expense added successfully!
-
-*Total Amount:* 300.00
-*Paid by:* Alice
-*Description:* Team lunch at Pizza Place
-
-*To be paid by 2 user(s):*
-  • Bob: 150.00
-  • Charlie: 150.00
-
-Expense ID: #123
-```
-
-### Viewing Pending Expenses
-
-**User** (in group): `/myexpenses`
-
-**Bot** (in DM to user):
-```
-*Your Pending Expenses:*
-
-*Expense #123*
-Total amount: 300.00
-Amount you owe: 150.00
-Description: Team lunch at Pizza Place
-Bill photo: [View]
-Vendor slip: [View]
-Fronted by: Alice
-Date: 2025/01/15
-
-Total pending: 150.00
-
-Use /summary for a cumulative summary
-Use /pay to mark expenses as paid
-```
-
-### Viewing Payment History
-
-**User**: `/myexpenses`
-
-**Bot** (in DM, showing both sections):
-```
-*Your Pending Expenses:*
-
-*Expense #124*
-Total amount: 50.00
-Amount you owe: 25.00
-Description: Coffee supplies
-Fronted by: Dave
-Date: 2025/01/16
-
-Total pending: 25.00
-
-━━━━━━━━━━━━━━━━
-
-*Your Payment History:*
-
-*Payment #42*
-Amount paid: 150.00
-Paid to: Alice
-For: Team lunch at Pizza Place
-Transfer slip: [View]
-Date: 2025/01/15
-
-Total paid: 150.00
-
-Use /summary for a cumulative summary
-Use /pay to mark expenses as paid
-```
-
-### Marking an Expense as Paid
-
-**User**: `/pay`
-
-**Bot**:
-```
-Select an expense to mark as paid:
-
-[#124 - 25.00 (Coffee supplies)]
-
-Showing 1 of 1 pending expenses.
-Use /myexpenses to see all.
-```
-
-**User**: _clicks on the expense_
-
-**Bot**:
-```
-*Payment Details for Expense #124:*
-
-Amount to pay: 25.00
-For: Coffee supplies
-
-Pay to: Dave
-Bank Account: 9876543210
-
-Once you've paid, click the button below to mark as paid.
-
-[I've Paid This]
-[Cancel]
-```
-
-**User**: _transfers money and clicks "I've Paid This"_
-
-**Bot**:
-```
-Would you like to upload a bank transfer slip as proof of payment?
-
-You can send a photo now, or click Skip to mark as paid without a receipt.
-
-[Skip]
-```
-
-**User**: _uploads transfer slip photo_
-
-**Bot**:
-```
-*Success:* Payment marked as complete!
-
-Expense #124
-Amount: 25.00
-Description: Coffee supplies
+1. User opens Mini App in Telegram
+2. Telegram sends `initData` with signature
+3. Worker validates signature using bot token
+4. If valid, user is authenticated and can make API calls
+5. Each API request includes `X-Telegram-Init-Data` header
 
-Transfer slip uploaded
+Implementation: [src/telegram-auth.ts](src/telegram-auth.ts)
 
-The person who paid has been notified.
-```
-
-**Bot** (notification to Dave):
-```
-*Success:* Bob marked their payment as paid!
-
-Expense #124
-Amount: 25.00
-Description: Coffee supplies
-
-Transfer slip: [View]
-```
-
-### Viewing Summary
-
-**User** (in group): `/summary`
-
-**Bot** (in DM):
-```
-*Your Expense Summary:*
-
-*Total Unpaid:* 75.00
-*Total Paid:* 150.00
-*Pending Expenses:* 2
-
-*You owe:*
-  • Alice: 50.00 (1 expense)
-  • Dave: 25.00 (1 expense)
-
-Use /myexpenses to see detailed breakdown
-Use /pay to mark expenses as paid
-```
-
-### Viewing Who Owes You
-
-**User** (in group): `/owed`
-
-**Bot** (in DM):
-```
-*Payments Owed to You:*
-
-Total Pending: 300.00
-Total Received: 150.00
-
-*Breakdown:*
-
-Bob:
-  Amount: 150.00
-  Expenses: #123
-
-Charlie:
-  Amount: 150.00
-  Expenses: #123
-```
-
-### Viewing Group History
-
-**User** (in group): `/history`
-
-**Bot** (in DM):
-```
-*Recent Expense History:*
-
-*Expense #125*
-   Amount: 80.00
-   Description: Uber ride home
-   By: Charlie | 2025/01/17
-   Split: equal among 4 user(s)
-   Status: 3/3 paid
-
-*Expense #124*
-   Amount: 50.00
-   Description: Coffee supplies
-   By: Dave | 2025/01/16
-   Split: equal among 2 user(s)
-   Status: 2/2 paid
-
-*Expense #123*
-   Amount: 300.00
-   Description: Team lunch at Pizza Place
-   Bill photo: [View]
-   Vendor slip: [View]
-   By: Alice | 2025/01/15
-   Split: equal among 3 user(s)
-   Status: 2/2 paid
-
-Showing last 3 expenses
-```
-
-### Listing Users
-
-**User**: `/listusers`
-
-**Bot**:
-```
-*Registered Users (4):*
-
-1. Alice
-2. Bob
-3. Charlie
-4. Dave
-```
-
-### Viewing Bank Account Information
-
-**User**: `/accountinfo`
-
-**Bot**:
-```
-*Payment Information:*
-
-Alice - `1234567890`
-Bob - `9876543210`
-Charlie - No payment info set
-Dave - `5555555555`
-
-Use /setaccount to set your bank account
-```
-
-### Setting Reminders
-
-**User**: `/setreminder`
-
-**Bot**:
-```
-*Status:* Daily reminders have been enabled for this group!
-
-Users with pending expenses will receive a daily DM reminder.
-```
-
-**User**: `/setreminder` (again)
-
-**Bot**:
-```
-*Status:* Daily reminders have been disabled for this group.
-```
-
-### Daily Reminder (Automatic)
-
-**Bot** (at 10:00 AM UTC, if reminders enabled):
-```
-*Daily Reminder*
-
-You have 2 pending expenses
-Total owed: 175.00
-
-Use /myexpenses to see details
-Use /pay to mark as paid
-```
-
-### Unregistering a User (Admin Only)
-
-**Method 1: Reply to message**
-
-**Admin** (replying to Bob's message): `/unregister`
-
-**Bot** (if user has pending expenses):
-```
-*Error:* Cannot unregister user. They have 2 unpaid expense(s) totaling 150.00.
-```
-
-**Admin** (after Bob pays all expenses, replies to Bob): `/unregister`
-
-**Bot**:
-```
-*Success:* Bob has been unregistered from this group.
-```
-
-**Method 2: Using @username**
-
-**Admin**: `/unregister @bob`
-
-**Bot**:
-```
-*Success:* Bob has been unregistered from this group.
-```
-
-**Method 3: Using plain username (works even if user left the group)**
-
-**Admin**: `/unregister bob`
-
-**Bot**:
-```
-*Success:* Bob has been unregistered from this group.
-```
-
-**Admin**: `/unregister @alice`
-
-**Bot** (if username not found):
-```
-*Error:* User @alice is not registered in this group.
-```
-
-### Setting Group Timezone (Admin Only)
-
-**Admin**: `/settimezone`
-
-**Bot**:
-```
-*Set Group Timezone*
-
-Please enter the timezone offset from UTC.
-
-Examples:
-+5 for Maldives
--5 for Eastern US
-+0 for UTC
-+8 for Singapore
-
-Just send the number (like +5 or -5)
-```
-
-**Admin**: `+5`
-
-**Bot**:
-```
-*Success:* Timezone set to UTC+5
-
-All dates in this group will now be displayed in this timezone.
-```
-
-### Viewing Group Timezone
+### Photo Upload Flow
 
-**User**: `/viewtimezone`
+1. User selects photo in Mini App
+2. Frontend converts to base64
+3. Sends to API endpoint with expense data
+4. Worker fetches high-res version from Telegram
+5. Uploads to R2 bucket
+6. Stores public URL in database
 
-**Bot**:
-```
-*Current Group Timezone:* UTC+5
-
-To change the timezone, use /settimezone (admin only)
-```
-
-### Admin Marking Payment on Behalf of User
-
-**Admin** (replying to Bob's message): `/adminpay`
-
-**Bot**:
-```
-Select an expense to mark as paid for Bob:
-
-[#123 - 150.00 (Team lunch at Piz...)]
-[#124 - 25.00 (Coffee supplies)]
-
-Showing 2 of 2 pending expenses.
-```
-
-**Admin**: _clicks on expense #123_
-
-**Bot** (in group):
-```
-*Success:* Payment marked as complete for Bob!
-
-Expense #123
-Amount: 150.00
-Description: Team lunch at Pizza Place
-```
-
-**Bot** (DM to Alice, who fronted the money):
-```
-*Success:* Admin Charlie marked Bob's payment as paid!
+### Reminder System
 
-Expense #123
-Amount: 150.00
-Description: Team lunch at Pizza Place
-```
-
-**Bot** (DM to Bob):
-```
-*Success:* Admin marked your payment as complete!
-
-Expense #123
-Amount: 150.00
-Description: Team lunch at Pizza Place
-```
-
-### Error Messages
-
-**User tries to add expense without registration**:
-```
-*Error:* You must be registered in this group first.
-Ask a group admin to reply to one of your messages with /register
-```
-
-**User tries to mark paid when person hasn't set payment details**:
-```
-*Error:* The person who paid this expense hasn't set up payment details yet.
-Ask them to use /setaccount to add their bank account.
-```
+1. Cron trigger runs daily at 10:00 AM UTC
+2. Worker checks groups with reminders enabled
+3. Queries for users with unpaid expenses
+4. Sends DM to each user with summary
+5. Updates `last_reminder_sent` timestamp
 
-**Session expires**:
-```
-Session expired
-```
-
-**Bot can't send DM**:
-```
-*Error:* I couldn't send you a DM. Please start a chat with me first by clicking my name and pressing "Start".
-```
+Implementation: [src/handlers/reminders.ts](src/handlers/reminders.ts)
 
 ## Troubleshooting
 
-### Bot Not Responding
-1. Check bot token is correctly set: `npx wrangler secret list`
-2. Verify webhook is set: `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
-3. Check worker logs: `npx wrangler tail`
+### Mini App Not Loading
+- Check that `WEBHOOK_DOMAIN` in [wrangler.toml](wrangler.toml) is correct
+- Verify the menu button URL in BotFather
+- Check browser console for errors
+- Ensure assets are deployed (run `npm run deploy`)
+
+### Authentication Errors
+- Verify `BOT_TOKEN` is set correctly: `npx wrangler secret list`
+- Check that the bot username is correct in [wrangler.toml](wrangler.toml)
+- Ensure the Mini App is opened from Telegram (not directly in browser)
 
 ### Database Errors
-1. Ensure schema is initialized: `npx wrangler d1 execute raswise_db --file=./schema.sql`
-2. Check D1 binding in `wrangler.toml`
-3. Verify database ID matches
+- Reinitialize schema: `npx wrangler d1 execute raswise_db --file=./schema.sql`
+- Check D1 binding in [wrangler.toml](wrangler.toml)
+- View logs: `npx wrangler tail`
 
-### Photos Not Working
-1. Check R2 bucket exists: `npx wrangler r2 bucket list`
-2. Verify R2 binding in `wrangler.toml`
-3. Ensure worker has R2 permissions
+### Photos Not Appearing
+- Verify R2 bucket exists: `npx wrangler r2 bucket list`
+- Check `R2_PUBLIC_URL` in [wrangler.toml](wrangler.toml)
+- Ensure R2 bucket has public access configured
+- Check R2 binding in [wrangler.toml](wrangler.toml)
 
-### Sessions Expiring
-- Sessions expire after 10 minutes of inactivity
-- Restart the flow if session expires
-- Check KV namespace is properly bound
+### Reminders Not Working
+- Verify cron trigger is set in [wrangler.toml](wrangler.toml)
+- Check that reminders are enabled in group settings
+- Test manually: `curl https://your-worker.workers.dev/cron/reminders`
+- View logs: `npx wrangler tail`
 
 ## Contributing
 
@@ -1275,17 +541,12 @@ MIT
 
 Built with:
 - [grammY](https://grammy.dev/) - Telegram Bot Framework
+- [Telegram Mini Apps](https://core.telegram.org/bots/webapps) - Web App Platform
 - [Cloudflare Workers](https://workers.cloudflare.com/) - Serverless Platform
 - [Cloudflare D1](https://developers.cloudflare.com/d1/) - Edge Database
 - [Cloudflare R2](https://developers.cloudflare.com/r2/) - Object Storage
 - [Vitest](https://vitest.dev/) - Testing Framework
 
-## Support
-
-For bugs and feature requests, please open an issue on GitHub.
-
-For questions and discussions, use GitHub Discussions.
-
 ---
 
-Made with Cloudflare Workers
+Made with Cloudflare Workers • Powered by Telegram Mini Apps

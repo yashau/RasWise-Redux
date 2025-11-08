@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RasWise - Group Expense Manager</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+    <style>
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .menu-item {
+            background-color: hsl(var(--card));
+            border: 1px solid hsl(var(--border));
+            border-radius: var(--radius);
+            padding: 1.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .menu-item:hover {
+            border-color: hsl(var(--primary));
+            background-color: hsl(var(--primary) / 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px -2px rgb(0 0 0 / 0.1);
+        }
+
+        .menu-item:active {
+            transform: translateY(0);
+        }
+
+        .menu-icon {
+            font-size: 2.5rem;
+        }
+
+        .menu-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .menu-description {
+            font-size: 0.75rem;
+            color: hsl(var(--muted-foreground));
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: hsl(var(--muted-foreground));
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 1.5rem 0 1rem 0;
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>RasWise</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="group-selection" style="display: none;">
+            <div class="section-title">Select a Group</div>
+            <div id="groups-list" class="card-list"></div>
+        </div>
+
+        <div id="menu" style="display: none;">
+            <div class="section-title">Manage Expenses</div>
+            <div class="menu-grid">
+                <div class="menu-item" data-action="addexpense">
+                    <div class="menu-icon">➕</div>
+                    <div class="menu-label">Add Expense</div>
+                    <div class="menu-description">Split a new expense</div>
+                </div>
+
+                <div class="menu-item" data-action="pay">
+                    <div class="menu-icon">💳</div>
+                    <div class="menu-label">Mark as Paid</div>
+                    <div class="menu-description">Pay your dues</div>
+                </div>
+            </div>
+
+            <div class="section-title">View & Track</div>
+            <div class="menu-grid">
+                <div class="menu-item" data-action="myexpenses">
+                    <div class="menu-icon">📋</div>
+                    <div class="menu-label">My Expenses</div>
+                    <div class="menu-description">Your split expenses</div>
+                </div>
+
+                <div class="menu-item" data-action="summary">
+                    <div class="menu-icon">📊</div>
+                    <div class="menu-label">Summary</div>
+                    <div class="menu-description">Financial overview</div>
+                </div>
+
+                <div class="menu-item" data-action="history">
+                    <div class="menu-icon">📜</div>
+                    <div class="menu-label">History</div>
+                    <div class="menu-description">All group expenses</div>
+                </div>
+
+                <div class="menu-item" data-action="owed">
+                    <div class="menu-icon">💰</div>
+                    <div class="menu-label">Who Owes Me</div>
+                    <div class="menu-description">Track debtors</div>
+                </div>
+            </div>
+
+            <div class="section-title">Users & Settings</div>
+            <div class="menu-grid">
+                <div class="menu-item" data-action="account">
+                    <div class="menu-icon">🏦</div>
+                    <div class="menu-label">My Account</div>
+                    <div class="menu-description">Bank account info</div>
+                </div>
+
+                <div class="menu-item" data-action="users">
+                    <div class="menu-icon">👥</div>
+                    <div class="menu-label">Users & Accounts</div>
+                    <div class="menu-description">View all users</div>
+                </div>
+
+                <div class="menu-item" data-action="settings" id="settings-menu" style="display: none;">
+                    <div class="menu-icon">⚙️</div>
+                    <div class="menu-label">Group Settings</div>
+                    <div class="menu-description">Reminders & currency</div>
+                </div>
+
+                <div class="menu-item" data-action="adminpay" id="admin-pay-menu" style="display: none;">
+                    <div class="menu-icon">👑</div>
+                    <div class="menu-label">Admin Payment</div>
+                    <div class="menu-description">Mark paid for users</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        let selectedGroupId = params.get('group_id');
+        const userId = MiniApp.getUserId();
+
+        async function init() {
+            if (!userId) {
+                MiniApp.showError('Unable to identify user. Please try again.');
+                return;
+            }
+
+            // Check for start_param from deeplink
+            const startParam = window.Telegram.WebApp.initDataUnsafe?.start_param;
+            if (startParam) {
+                handleDeeplink(startParam);
+                return;
+            }
+
+            // If no group selected, show group selection
+            if (!selectedGroupId) {
+                await loadGroups();
+            } else {
+                await loadGroupMenu();
+            }
+        }
+
+        function handleDeeplink(startParam) {
+            // Parse start_param format: action-groupId or action_groupId
+            // Examples: pay-5048388690, owed-5048388690, myexpenses-5048388690
+            // Note: Telegram may convert underscores to hyphens in deeplinks
+
+            // Try splitting by hyphen first (Telegram's preferred format)
+            let parts = startParam.split('-');
+
+            // If that doesn't work, try underscore
+            if (parts.length < 2) {
+                parts = startParam.split('_');
+            }
+
+            if (parts.length < 2) {
+                console.error('Invalid start_param format:', startParam);
+                // Fall back to normal flow
+                if (!selectedGroupId) {
+                    loadGroups();
+                } else {
+                    loadGroupMenu();
+                }
+                return;
+            }
+
+            const action = parts[0];
+            // Group IDs are always negative, so negate the parsed number
+            const groupId = -parseInt(parts.slice(1).join(''));
+
+            // Redirect to the appropriate page
+            window.location.href = `/${action}.html?group_id=${groupId}`;
+        }
+
+        async function loadGroups() {
+            try {
+                const data = await MiniApp.apiRequest('/api/user-groups?user_id=' + userId);
+
+                MiniApp.hideLoading();
+
+                if (data.groups.length === 0) {
+                    MiniApp.showError('No groups found. Please add the bot to a group first.');
+                    return;
+                }
+
+                document.getElementById('group-name').textContent = 'Select a group';
+                document.getElementById('group-selection').style.display = 'block';
+
+                const groupsList = document.getElementById('groups-list');
+
+                data.groups.forEach(group => {
+                    const groupCard = document.createElement('div');
+                    groupCard.className = 'card clickable';
+                    groupCard.style.cursor = 'pointer';
+
+                    const groupTitle = document.createElement('div');
+                    groupTitle.style.fontWeight = '600';
+                    groupTitle.style.fontSize = '1.125rem';
+                    groupTitle.textContent = group.group_title || 'Group ' + group.group_id;
+
+                    if (group.group_username) {
+                        const username = document.createElement('div');
+                        username.style.fontSize = '0.875rem';
+                        username.style.color = 'hsl(var(--muted-foreground))';
+                        username.textContent = '@' + group.group_username;
+                        groupCard.appendChild(groupTitle);
+                        groupCard.appendChild(username);
+                    } else {
+                        groupCard.appendChild(groupTitle);
+                    }
+
+                    groupCard.addEventListener('click', () => {
+                        MiniApp.haptic();
+                        selectedGroupId = group.group_id;
+                        showGroupMenu();
+                    });
+
+                    groupsList.appendChild(groupCard);
+                });
+            } catch (error) {
+                MiniApp.showError('Failed to load groups');
+                console.error(error);
+            }
+        }
+
+        async function showGroupMenu() {
+            // Hide group selection
+            document.getElementById('group-selection').style.display = 'none';
+
+            // Show loading
+            document.getElementById('loading').style.display = 'flex';
+
+            await loadGroupMenu();
+        }
+
+        async function loadGroupMenu() {
+            try {
+                const data = await MiniApp.apiRequest('/api/group-users?group_id=' + selectedGroupId);
+
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + selectedGroupId;
+                MiniApp.hideLoading();
+                document.getElementById('menu').style.display = 'block';
+
+                // Check if user is admin to show admin-only features
+                try {
+                    const settings = await MiniApp.apiRequest('/api/group-settings?group_id=' + selectedGroupId + '&user_id=' + userId);
+                    if (settings.is_admin) {
+                        document.getElementById('admin-pay-menu').style.display = 'flex';
+                        document.getElementById('settings-menu').style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.log('Could not check admin status');
+                }
+
+                // Hide back button on main menu (user can close with Telegram's close button)
+                MiniApp.setupCloseButton();
+
+                // Setup menu item clicks
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const action = item.dataset.action;
+                        MiniApp.haptic();
+                        navigateToAction(action);
+                    });
+                });
+            } catch (error) {
+                MiniApp.showError('Failed to load group information');
+                console.error(error);
+            }
+        }
+
+        function navigateToAction(action) {
+            // Navigate to action page with group_id parameter
+            window.location.href = `/${action}.html?group_id=${selectedGroupId}`;
+        }
+
+        init();
+    </script>
+</body>
+</html>

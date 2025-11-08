@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Expenses - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>My Expenses</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="unpaid">Unpaid</button>
+            <button class="tab" data-tab="paid">Paid</button>
+            <button class="tab" data-tab="all">All</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading your expenses...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="expense-container" class="expense-list"></div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">💰</div>
+            <h2>No Expenses Found</h2>
+            <p>You have no expenses in this group</p>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let allExpenses = [];
+        let currentTab = 'unpaid';
+        let currency = '$';
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/user-expenses?group_id=' + groupId + '&user_id=' + userId);
+                allExpenses = data.expenses;
+                currency = data.currency || '$';
+
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + groupId;
+                MiniApp.hideLoading();
+
+                displayExpenses();
+
+                // Tab click handlers
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        currentTab = tab.dataset.tab;
+                        displayExpenses();
+                        MiniApp.haptic('light');
+                    });
+                });
+            } catch (error) {
+                MiniApp.showError('Failed to load expenses');
+                console.error(error);
+            }
+        }
+
+        function displayExpenses() {
+            const container = document.getElementById('expense-container');
+            const emptyState = document.getElementById('empty-state');
+
+            let filtered = allExpenses;
+            if (currentTab === 'unpaid') {
+                filtered = allExpenses.filter(e => e.paid === 0);
+            } else if (currentTab === 'paid') {
+                filtered = allExpenses.filter(e => e.paid === 1);
+            }
+
+            container.innerHTML = '';
+
+            if (filtered.length === 0) {
+                emptyState.style.display = 'block';
+                container.style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            container.style.display = 'flex';
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'expense-card';
+
+                const header = document.createElement('div');
+                header.className = 'expense-header';
+
+                const idBadge = document.createElement('div');
+                idBadge.className = 'expense-id-badge';
+                idBadge.textContent = '#' + item.expense.group_expense_number;
+
+                const amount = document.createElement('div');
+                amount.className = 'expense-amount' + (item.paid ? ' paid' : '');
+                amount.textContent = MiniApp.formatCurrency(item.amount_owed, currency);
+
+                header.appendChild(idBadge);
+                header.appendChild(amount);
+
+                const description = document.createElement('div');
+                description.className = 'expense-description';
+                description.textContent = item.expense.description || 'No description';
+
+                const meta = document.createElement('div');
+                meta.className = 'expense-meta';
+
+                const status = document.createElement('span');
+                status.className = 'status-badge ' + (item.paid ? 'paid' : 'unpaid');
+                // Show different status if user is the payer
+                if (item.is_payer) {
+                    status.textContent = '💰 You Paid';
+                } else {
+                    status.textContent = item.paid ? '✓ Paid' : 'Unpaid';
+                }
+                meta.appendChild(status);
+
+                const date = document.createElement('span');
+                date.className = 'meta-item';
+                date.textContent = '📅 ' + MiniApp.formatDate(item.expense.created_at);
+                meta.appendChild(date);
+
+                if (item.expense.location) {
+                    const location = document.createElement('span');
+                    location.className = 'meta-item';
+                    location.textContent = '📍 ' + item.expense.location;
+                    meta.appendChild(location);
+                }
+
+                card.appendChild(header);
+                card.appendChild(description);
+                card.appendChild(meta);
+
+                // Add photos section if available
+                const hasPhotos = item.expense.photo_url ||
+                                 item.expense.vendor_payment_slip_url ||
+                                 item.transfer_slip_url ||
+                                 (item.all_transfer_slips && item.all_transfer_slips.length > 0);
+
+                if (hasPhotos) {
+                    const photos = document.createElement('div');
+                    photos.className = 'expense-photos';
+
+                    if (item.expense.photo_url) {
+                        const billLink = document.createElement('div');
+                        billLink.className = 'photo-link';
+                        billLink.textContent = '📷 Bill Photo';
+                        billLink.onclick = () => MiniApp.openLightbox(item.expense.photo_url, 'Bill Photo');
+                        photos.appendChild(billLink);
+                    }
+
+                    if (item.expense.vendor_payment_slip_url) {
+                        const slipLink = document.createElement('div');
+                        slipLink.className = 'photo-link';
+                        slipLink.textContent = '🧾 Vendor Payment Slip';
+                        slipLink.onclick = () => MiniApp.openLightbox(item.expense.vendor_payment_slip_url, 'Vendor Payment Slip');
+                        photos.appendChild(slipLink);
+                    }
+
+                    // For expenses where user is the payer, show all transfer slips in carousel
+                    if (item.is_payer && item.all_transfer_slips && item.all_transfer_slips.length > 0) {
+                        const transferLink = document.createElement('div');
+                        transferLink.className = 'photo-link';
+                        transferLink.textContent = `💸 Transfer Slips (${item.all_transfer_slips.length})`;
+                        transferLink.onclick = () => {
+                            MiniApp.openLightbox(
+                                item.all_transfer_slips,
+                                `Transfer Slips - Expense #${item.expense.group_expense_number}`
+                            );
+                        };
+                        photos.appendChild(transferLink);
+                    }
+                    // For expenses where user owes money, show their own transfer slip
+                    else if (item.transfer_slip_url) {
+                        const transferLink = document.createElement('div');
+                        transferLink.className = 'photo-link';
+                        transferLink.textContent = '💸 Transfer Slip';
+                        transferLink.onclick = () => MiniApp.openLightbox(item.transfer_slip_url, 'Transfer Slip');
+                        photos.appendChild(transferLink);
+                    }
+
+                    card.appendChild(photos);
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

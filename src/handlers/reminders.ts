@@ -1,8 +1,7 @@
-import { Context } from 'grammy/web';
 import { Database } from '../db';
-import { formatDateTime, formatAmount, saveSession, getSession } from '../utils';
+import { formatAmount, escapeMarkdown } from '../utils';
 
-export async function sendReminders(db: Database, botToken: string) {
+export async function sendReminders(db: Database, botToken: string, botUsername: string) {
   // Get all groups that have unpaid expenses
   const groupIds = await db.getGroupsForReminder();
 
@@ -27,8 +26,19 @@ export async function sendReminders(db: Database, botToken: string) {
         }
       }
 
+      // Get group currency
+      const currency = await db.getGroupCurrency(groupId);
+
       // Get all users with unpaid expenses in this group
       const groupUsers = await db.getGroupUsers(groupId);
+
+      // Get group name from first user's memberships
+      let groupName = 'Unknown Group';
+      if (groupUsers.length > 0) {
+        const memberships = await db.getUserGroups(groupUsers[0].telegram_id);
+        const groupInfo = memberships.find(m => m.group_id === groupId);
+        groupName = groupInfo?.group_title || `Group ${groupId}`;
+      }
 
       for (const user of groupUsers) {
         const unpaidSplits = await db.getUserUnpaidSplits(user.telegram_id, groupId);
@@ -38,11 +48,11 @@ export async function sendReminders(db: Database, botToken: string) {
         const totalOwed = unpaidSplits.reduce((sum, s) => sum + s.amount_owed, 0);
 
         const message =
-          `*Daily Reminder*\n\n` +
-          `You have ${unpaidSplits.length} pending expense${unpaidSplits.length > 1 ? 's' : ''}\n` +
-          `Total owed: ${formatAmount(totalOwed)}\n\n` +
-          `Use /myexpenses to see details\n` +
-          `Use /pay to mark as paid`;
+          `💰 *Daily Reminder*\n` +
+          `Group: ${escapeMarkdown(groupName)}\n\n` +
+          `You have *${unpaidSplits.length}* pending expense${unpaidSplits.length > 1 ? 's' : ''}\n` +
+          `Total owed: *${formatAmount(totalOwed, currency)}*\n\n` +
+          `👉 Tap to pay: https://t.me/${botUsername.replace(/_/g, '\\_')}/app?startapp=pay-${groupId}`;
 
         // Send reminder via DM
         try {
@@ -52,7 +62,8 @@ export async function sendReminders(db: Database, botToken: string) {
             body: JSON.stringify({
               chat_id: user.telegram_id,
               text: message,
-              parse_mode: 'Markdown'
+              parse_mode: 'Markdown',
+              disable_web_page_preview: false
             })
           });
         } catch (error) {
@@ -68,147 +79,4 @@ export async function sendReminders(db: Database, botToken: string) {
       console.error(`Failed to process reminders for group ${groupId}:`, error);
     }
   }
-}
-
-export async function handleSetReminder(ctx: Context, db: Database) {
-  if (!ctx.chat || ctx.chat.type === 'private') {
-    return ctx.reply('This command can only be used in group chats.');
-  }
-
-  // Check if user is admin
-  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
-  if (member.status !== 'creator' && member.status !== 'administrator') {
-    return ctx.reply('*Error:* Only group admins can configure reminders.', { parse_mode: 'Markdown' });
-  }
-
-  const groupId = ctx.chat.id;
-
-  // Toggle reminder settings
-  const currentSettings = await db.getReminderSettings(groupId);
-
-  if (currentSettings && currentSettings.enabled === 1) {
-    await db.setReminderSettings(groupId, false, currentSettings.reminder_time || '10:00');
-    await ctx.reply('*Status:* Daily reminders have been disabled for this group.', { parse_mode: 'Markdown' });
-  } else {
-    await db.setReminderSettings(groupId, true, currentSettings?.reminder_time || '10:00');
-    await ctx.reply(
-      '*Status:* Daily reminders have been enabled for this group!\n\n' +
-      'Users with pending expenses will receive a daily DM reminder.',
-      { parse_mode: 'Markdown' }
-    );
-  }
-}
-
-export async function handleReminderStatus(ctx: Context, db: Database) {
-  if (!ctx.chat || ctx.chat.type === 'private') {
-    return ctx.reply('This command can only be used in group chats.');
-  }
-
-  const groupId = ctx.chat.id;
-  const settings = await db.getReminderSettings(groupId);
-  const timezoneOffset = await db.getGroupTimezone(groupId);
-
-  if (!settings || settings.enabled === 0) {
-    await ctx.reply(
-      '*Status:* Daily reminders are currently disabled.\n\n' +
-      'Use /setreminder to enable them.',
-      { parse_mode: 'Markdown' }
-    );
-  } else {
-    const lastSent = settings.last_reminder_sent
-      ? formatDateTime(settings.last_reminder_sent, timezoneOffset)
-      : 'Never';
-
-    await ctx.reply(
-      '*Status:* Daily reminders are enabled\n\n' +
-      `Last sent: ${lastSent}\n\n` +
-      'Use /setreminder to disable',
-      { parse_mode: 'Markdown' }
-    );
-  }
-}
-
-export async function handleSetTimezone(ctx: Context, db: Database, kv: KVNamespace) {
-  if (!ctx.chat || ctx.chat.type === 'private') {
-    return ctx.reply('This command can only be used in group chats.');
-  }
-
-  // Check if user is admin
-  const member = await ctx.api.getChatMember(ctx.chat.id, ctx.from!.id);
-  if (member.status !== 'creator' && member.status !== 'administrator') {
-    return ctx.reply('*Error:* Only group admins can set the timezone.', { parse_mode: 'Markdown' });
-  }
-
-  const groupId = ctx.chat.id;
-  const userId = ctx.from!.id;
-
-  // Start session
-  const session = {
-    group_id: groupId,
-    step: 'timezone_offset'
-  };
-
-  const sessionKey = `timezone_session:${groupId}:${userId}`;
-  await saveSession(kv, sessionKey, session);
-
-  await ctx.reply(
-    '*Set Group Timezone*\n\n' +
-    'Please enter the timezone offset from UTC.\n\n' +
-    'Examples:\n' +
-    '+5 for Maldives\n' +
-    '-5 for Eastern US\n' +
-    '+0 for UTC\n' +
-    '+8 for Singapore\n\n' +
-    'Just send the number (like +5 or -5)',
-    { parse_mode: 'Markdown' }
-  );
-}
-
-export async function handleTimezoneInfo(ctx: Context, db: Database, kv: KVNamespace, session: any, groupId: number, userId: number) {
-  const text = ctx.message?.text;
-
-  if (!text) {
-    return ctx.reply('*Error:* Please send a valid timezone offset (e.g., +5.5 or -5)', { parse_mode: 'Markdown' });
-  }
-
-  // Parse timezone offset
-  const offset = parseFloat(text);
-
-  if (isNaN(offset) || offset < -12 || offset > 14) {
-    return ctx.reply(
-      '*Error:* Invalid timezone offset. Please enter a number between -12 and +14\n\n' +
-      'Examples: +5.5, -5, +8, +0',
-      { parse_mode: 'Markdown' }
-    );
-  }
-
-  // Save timezone
-  await db.setGroupTimezone(groupId, offset);
-
-  // Clear session
-  const sessionKey = `timezone_session:${groupId}:${userId}`;
-  await kv.delete(sessionKey);
-
-  const sign = offset >= 0 ? '+' : '';
-  await ctx.reply(
-    `*Success:* Timezone set to UTC${sign}${offset}\n\n` +
-    'All dates in this group will now be displayed in this timezone.',
-    { parse_mode: 'Markdown' }
-  );
-}
-
-export async function handleViewTimezone(ctx: Context, db: Database) {
-  if (!ctx.chat || ctx.chat.type === 'private') {
-    return ctx.reply('This command can only be used in group chats.');
-  }
-
-  const groupId = ctx.chat.id;
-  const offset = await db.getGroupTimezone(groupId);
-
-  const sign = offset >= 0 ? '+' : '';
-  await ctx.reply(
-    `*Current Group Timezone:* UTC${sign}${offset}\n\n` +
-    'To change the timezone, use /settimezone (admin only)',
-    { parse_mode: 'Markdown' }
-  );
 }

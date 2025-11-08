@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users & Accounts - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Users & Accounts</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading users...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">👥</div>
+            <h2>No Users Yet</h2>
+            <p>No users are registered in this group yet.</p>
+        </div>
+
+        <div id="users-list" class="expense-list" style="display: none;"></div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let isAdmin = false;
+        let allUsers = [];
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/group-account-info?group_id=' + groupId);
+
+                // Get group settings to check admin status
+                const settings = await MiniApp.apiRequest('/api/group-settings?group_id=' + groupId + '&user_id=' + userId);
+                isAdmin = settings.is_admin || false;
+
+                document.getElementById('group-name').textContent = 'Group ' + groupId;
+                allUsers = data.users;
+                MiniApp.hideLoading();
+
+                if (allUsers.length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    displayUsers();
+                    document.getElementById('users-list').style.display = 'flex';
+                }
+            } catch (error) {
+                MiniApp.hideLoading();
+                MiniApp.showError('Failed to load users');
+                console.error(error);
+            }
+        }
+
+        function displayUsers() {
+            const listEl = document.getElementById('users-list');
+            listEl.innerHTML = '';
+
+            allUsers.forEach(user => {
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                const header = document.createElement('div');
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'flex-start';
+                header.style.marginBottom = '0.75rem';
+
+                const userInfo = document.createElement('div');
+                userInfo.style.flex = '1';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.style.fontWeight = '600';
+                nameDiv.style.fontSize = '1rem';
+                nameDiv.style.marginBottom = '0.25rem';
+                nameDiv.textContent = user.name;
+
+                userInfo.appendChild(nameDiv);
+
+                if (user.username) {
+                    const usernameDiv = document.createElement('div');
+                    usernameDiv.style.fontSize = '0.875rem';
+                    usernameDiv.style.color = 'hsl(var(--muted-foreground))';
+                    usernameDiv.textContent = '@' + user.username;
+                    userInfo.appendChild(usernameDiv);
+                }
+
+                header.appendChild(userInfo);
+
+                // Add unregister button for admins (except for themselves)
+                if (isAdmin && user.telegram_id !== userId) {
+                    const unregisterBtn = document.createElement('button');
+                    unregisterBtn.className = 'delete-btn-inline';
+                    unregisterBtn.innerHTML = '&times;';
+                    unregisterBtn.title = 'Unregister user';
+                    unregisterBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        unregisterUser(user.telegram_id, user.name);
+                    };
+                    header.appendChild(unregisterBtn);
+                }
+
+                card.appendChild(header);
+
+                // Account information
+                const accountDiv = document.createElement('div');
+                accountDiv.style.padding = '0.75rem';
+                accountDiv.style.backgroundColor = 'hsl(var(--secondary))';
+                accountDiv.style.borderRadius = 'calc(var(--radius) - 2px)';
+
+                const accountLabel = document.createElement('div');
+                accountLabel.style.fontSize = '0.75rem';
+                accountLabel.style.color = 'hsl(var(--muted-foreground))';
+                accountLabel.style.marginBottom = '0.25rem';
+                accountLabel.textContent = 'Bank Account';
+
+                const accountValue = document.createElement('div');
+                accountValue.style.fontFamily = 'monospace';
+                accountValue.style.fontSize = '0.875rem';
+                accountValue.style.fontWeight = '500';
+
+                if (user.account_number) {
+                    accountValue.textContent = user.account_number;
+                    accountValue.style.cursor = 'pointer';
+                    accountValue.style.userSelect = 'text';
+                    accountValue.title = 'Click to copy';
+                    accountValue.onclick = () => {
+                        navigator.clipboard.writeText(user.account_number).then(() => {
+                            MiniApp.haptic('success');
+                            MiniApp.showPopup('Account number copied!');
+                        }).catch(err => {
+                            console.error('Failed to copy:', err);
+                        });
+                    };
+                } else {
+                    accountValue.style.fontStyle = 'italic';
+                    accountValue.style.color = 'hsl(var(--muted-foreground))';
+                    accountValue.textContent = 'Not set';
+                }
+
+                accountDiv.appendChild(accountLabel);
+                accountDiv.appendChild(accountValue);
+                card.appendChild(accountDiv);
+
+                listEl.appendChild(card);
+            });
+        }
+
+        async function unregisterUser(targetUserId, userName) {
+            if (!confirm(`Are you sure you want to unregister ${userName}? This will remove them from the group and all their expense data will be affected.`)) {
+                return;
+            }
+
+            try {
+                MiniApp.showLoading();
+                await MiniApp.apiRequest('/api/unregister-user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        target_user_id: targetUserId
+                    })
+                });
+
+                // Remove from local array and re-render
+                allUsers = allUsers.filter(u => u.telegram_id !== targetUserId);
+                MiniApp.hideLoading();
+
+                if (allUsers.length === 0) {
+                    document.getElementById('users-list').style.display = 'none';
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    displayUsers();
+                }
+
+                MiniApp.haptic('success');
+                MiniApp.showPopup('User unregistered successfully');
+            } catch (error) {
+                MiniApp.hideLoading();
+                MiniApp.showError('Failed to unregister user');
+                console.error(error);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

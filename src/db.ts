@@ -3,6 +3,7 @@ import type {
   User,
   AccountDetail,
   GroupUser,
+  UserGroupMembership,
   Expense,
   ExpenseSplit,
   Payment,
@@ -115,16 +116,82 @@ export class Database {
     };
   }
 
+  // User group membership operations (for tracking actual Telegram memberships)
+  async addOrUpdateGroupMembership(
+    user_id: number,
+    group_id: number,
+    group_title?: string,
+    group_username?: string
+  ): Promise<void> {
+    const now = Date.now();
+    // Convert undefined to null for D1
+    const title = group_title ?? null;
+    const username = group_username ?? null;
+
+    await this.db.prepare(`
+      INSERT INTO user_group_memberships (user_id, group_id, group_title, group_username, joined_at, is_member, updated_at)
+      VALUES (?, ?, ?, ?, ?, 1, ?)
+      ON CONFLICT(user_id, group_id) DO UPDATE SET
+        group_title = COALESCE(?, group_title),
+        group_username = COALESCE(?, group_username),
+        is_member = 1,
+        updated_at = ?
+    `).bind(
+      user_id, group_id, title, username, now, now,
+      title, username, now
+    ).run();
+  }
+
+  async removeGroupMembership(user_id: number, group_id: number): Promise<void> {
+    await this.db.prepare(`
+      UPDATE user_group_memberships
+      SET is_member = 0, updated_at = ?
+      WHERE user_id = ? AND group_id = ?
+    `).bind(Date.now(), user_id, group_id).run();
+  }
+
+  async getUserGroups(user_id: number): Promise<UserGroupMembership[]> {
+    const result = await this.db.prepare(`
+      SELECT * FROM user_group_memberships
+      WHERE user_id = ? AND is_member = 1
+      ORDER BY group_title ASC
+    `).bind(user_id).all<UserGroupMembership>();
+    return result.results || [];
+  }
+
+  async getGroupMembers(group_id: number): Promise<number[]> {
+    const result = await this.db.prepare(`
+      SELECT user_id FROM user_group_memberships
+      WHERE group_id = ? AND is_member = 1
+    `).bind(group_id).all<{ user_id: number }>();
+    return (result.results || []).map(r => r.user_id);
+  }
+
   // Expense operations
   async createExpense(expense: Omit<Expense, 'id' | 'group_expense_number' | 'created_at'>): Promise<{ id: number; group_expense_number: number }> {
-    // Get the next group expense number
-    const maxNumResult = await this.db.prepare(`
-      SELECT COALESCE(MAX(group_expense_number), 0) as max_num
-      FROM expenses
-      WHERE group_id = ?
-    `).bind(expense.group_id).first<{ max_num: number }>();
+    // Get and increment the group expense counter
+    // First, ensure the counter exists for this group
+    await this.db.prepare(`
+      INSERT INTO group_expense_counters (group_id, last_expense_number)
+      VALUES (?, 0)
+      ON CONFLICT(group_id) DO NOTHING
+    `).bind(expense.group_id).run();
 
-    const nextGroupExpenseNumber = (maxNumResult?.max_num || 0) + 1;
+    // Increment the counter and get the new number
+    await this.db.prepare(`
+      UPDATE group_expense_counters
+      SET last_expense_number = last_expense_number + 1
+      WHERE group_id = ?
+    `).bind(expense.group_id).run();
+
+    // Get the new expense number
+    const counterResult = await this.db.prepare(`
+      SELECT last_expense_number
+      FROM group_expense_counters
+      WHERE group_id = ?
+    `).bind(expense.group_id).first<{ last_expense_number: number }>();
+
+    const nextGroupExpenseNumber = counterResult!.last_expense_number;
 
     const result = await this.db.prepare(`
       INSERT INTO expenses (group_id, group_expense_number, created_by, paid_by, amount, description, location, photo_url, vendor_payment_slip_url, split_type, created_at)
@@ -178,9 +245,18 @@ export class Database {
     return result.results || [];
   }
 
+  async getExpenseSplit(split_id: number): Promise<ExpenseSplit | null> {
+    const result = await this.db.prepare(`
+      SELECT * FROM expense_splits WHERE id = ?
+    `).bind(split_id).first<ExpenseSplit>();
+    return result;
+  }
+
   async getUserUnpaidSplits(user_id: number, group_id?: number): Promise<(ExpenseSplit & { expense: Expense })[]> {
     let query = `
-      SELECT es.*, e.* FROM expense_splits es
+      SELECT es.id as split_id, es.expense_id, es.user_id, es.amount_owed, es.paid, es.paid_at,
+             e.*
+      FROM expense_splits es
       JOIN expenses e ON es.expense_id = e.id
       WHERE es.user_id = ? AND es.paid = 0
     `;
@@ -196,15 +272,16 @@ export class Database {
     const result = await this.db.prepare(query).bind(...bindings).all<any>();
 
     return (result.results || []).map(row => ({
-      id: row.id,
+      id: row.split_id,
       expense_id: row.expense_id,
       user_id: row.user_id,
       amount_owed: row.amount_owed,
       paid: row.paid,
       paid_at: row.paid_at,
       expense: {
-        id: row.expense_id,
+        id: row.id,
         group_id: row.group_id,
+        group_expense_number: row.group_expense_number,
         created_by: row.created_by,
         paid_by: row.paid_by,
         amount: row.amount,
@@ -359,6 +436,19 @@ export class Database {
   async getGroupTimezone(group_id: number): Promise<number> {
     const settings = await this.getReminderSettings(group_id);
     return settings?.timezone_offset ?? 0; // Default to UTC if not set
+  }
+
+  async setGroupCurrency(group_id: number, currency: string): Promise<void> {
+    await this.db.prepare(`
+      INSERT INTO reminder_settings (group_id, currency)
+      VALUES (?, ?)
+      ON CONFLICT(group_id) DO UPDATE SET currency = ?
+    `).bind(group_id, currency, currency).run();
+  }
+
+  async getGroupCurrency(group_id: number): Promise<string> {
+    const settings = await this.getReminderSettings(group_id);
+    return settings?.currency ?? '$'; // Default to $ if not set
   }
 
   async updateLastReminderSent(group_id: number): Promise<void> {

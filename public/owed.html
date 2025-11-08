@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Who Owes You - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Who Owes You</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">✅</div>
+            <h2>All Clear!</h2>
+            <p>Nobody owes you money in this group.</p>
+        </div>
+
+        <div id="owed-content" style="display: none;">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">Total Owed to You</div>
+                    <div class="summary-value positive" id="total-owed">0.00</div>
+                </div>
+            </div>
+
+            <div id="owed-list"></div>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let currency = '$';
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/owed?group_id=' + groupId + '&user_id=' + userId);
+
+                currency = data.currency || '$';
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + groupId;
+                MiniApp.hideLoading();
+
+                if (data.owed.length === 0) {
+                    MiniApp.showEmptyState();
+                } else {
+                    displayOwed(data.owed);
+                    document.getElementById('owed-content').style.display = 'block';
+                }
+            } catch (error) {
+                MiniApp.showError('Failed to load owed information');
+                console.error(error);
+            }
+        }
+
+        function displayOwed(owedData) {
+            // Group by user
+            const byUser = {};
+            let totalOwed = 0;
+
+            owedData.forEach(item => {
+                const userId = item.split.user_id;
+                if (!byUser[userId]) {
+                    byUser[userId] = {
+                        user: item.user,
+                        expenses: [],
+                        total: 0
+                    };
+                }
+                byUser[userId].expenses.push(item);
+                byUser[userId].total += item.split.amount_owed;
+                totalOwed += item.split.amount_owed;
+            });
+
+            // Update total
+            document.getElementById('total-owed').textContent = MiniApp.formatCurrency(totalOwed, currency);
+
+            // Display by user
+            const listEl = document.getElementById('owed-list');
+
+            Object.values(byUser).forEach(userData => {
+                const section = document.createElement('div');
+                section.className = 'owed-section';
+
+                const userHeader = document.createElement('div');
+                userHeader.className = 'owed-user-header';
+
+                const userInfo = document.createElement('div');
+                userInfo.className = 'owed-user-info';
+
+                const userName = document.createElement('div');
+                userName.className = 'owed-user-name';
+                userName.textContent = userData.user.first_name + (userData.user.username ? ' (@' + userData.user.username + ')' : '');
+
+                const userTotal = document.createElement('div');
+                userTotal.className = 'owed-user-total';
+                userTotal.textContent = MiniApp.formatCurrency(userData.total, currency);
+
+                userInfo.appendChild(userName);
+                userHeader.appendChild(userInfo);
+                userHeader.appendChild(userTotal);
+                section.appendChild(userHeader);
+
+                // List expenses from this user
+                const expenseList = document.createElement('div');
+                expenseList.className = 'expense-list';
+
+                userData.expenses.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'expense-card';
+
+                    const header = document.createElement('div');
+                    header.className = 'expense-header';
+
+                    const idBadge = document.createElement('div');
+                    idBadge.className = 'expense-id-badge';
+                    idBadge.textContent = '#' + item.expense.group_expense_number;
+
+                    const amount = document.createElement('div');
+                    amount.className = 'expense-amount';
+                    amount.textContent = MiniApp.formatCurrency(item.split.amount_owed, currency);
+
+                    header.appendChild(idBadge);
+                    header.appendChild(amount);
+
+                    const description = document.createElement('div');
+                    description.className = 'expense-description';
+                    description.textContent = item.expense.description || 'No description';
+
+                    const meta = document.createElement('div');
+                    meta.className = 'expense-meta';
+
+                    const date = document.createElement('span');
+                    date.className = 'meta-item';
+                    date.textContent = '📅 ' + MiniApp.formatDate(item.expense.created_at);
+                    meta.appendChild(date);
+
+                    if (item.expense.location) {
+                        const location = document.createElement('span');
+                        location.className = 'meta-item';
+                        location.textContent = '📍 ' + item.expense.location;
+                        meta.appendChild(location);
+                    }
+
+                    card.appendChild(header);
+                    card.appendChild(description);
+                    card.appendChild(meta);
+
+                    expenseList.appendChild(card);
+                });
+
+                section.appendChild(expenseList);
+                listEl.appendChild(section);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

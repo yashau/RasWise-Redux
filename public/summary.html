@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summary - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Financial Summary</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading your summary...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="summary-content" style="display: none;">
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-label">Total Owed</div>
+                    <div class="summary-value negative" id="total-owed">0.00</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-label">Total Paid</div>
+                    <div class="summary-value positive" id="total-paid">0.00</div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-label">Pending Count</div>
+                    <div class="summary-value" id="unpaid-count">0</div>
+                </div>
+            </div>
+
+            <div id="breakdown-section"></div>
+        </div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let currency = '$';
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/summary?group_id=' + groupId + '&user_id=' + userId);
+
+                currency = data.currency || '$';
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + groupId;
+                MiniApp.hideLoading();
+
+                displaySummary(data.summary);
+                document.getElementById('summary-content').style.display = 'block';
+            } catch (error) {
+                MiniApp.showError('Failed to load summary');
+                console.error(error);
+            }
+        }
+
+        function displaySummary(summary) {
+            document.getElementById('total-owed').textContent = MiniApp.formatCurrency(summary.total_owed, currency);
+            document.getElementById('total-paid').textContent = MiniApp.formatCurrency(summary.total_paid, currency);
+            document.getElementById('unpaid-count').textContent = summary.unpaid_count;
+
+            // Calculate net balance
+            const netBalance = summary.total_paid - summary.total_owed;
+
+            if (summary.total_owed > 0 || summary.total_paid > 0) {
+                const breakdownSection = document.getElementById('breakdown-section');
+
+                const title = document.createElement('h2');
+                title.style.fontSize = '1.125rem';
+                title.style.fontWeight = '600';
+                title.style.marginTop = '2rem';
+                title.style.marginBottom = '1rem';
+                title.textContent = 'Overview';
+                breakdownSection.appendChild(title);
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.padding = '1.5rem';
+
+                if (netBalance > 0) {
+                    card.innerHTML = `
+                        <div style="text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">✅</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">You're doing great!</div>
+                            <div style="color: hsl(var(--muted-foreground)); font-size: 0.875rem;">
+                                You've paid <strong>${MiniApp.formatCurrency(summary.total_paid, currency)}</strong> and have
+                                <strong>${summary.unpaid_count}</strong> pending expense${summary.unpaid_count !== 1 ? 's' : ''}.
+                            </div>
+                        </div>
+                    `;
+                } else if (netBalance < 0) {
+                    card.innerHTML = `
+                        <div style="text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">💰</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Time to settle up!</div>
+                            <div style="color: hsl(var(--muted-foreground)); font-size: 0.875rem;">
+                                You have <strong>${MiniApp.formatCurrency(summary.total_owed, currency)}</strong> in pending payments.
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div style="text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
+                            <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">All settled!</div>
+                            <div style="color: hsl(var(--muted-foreground)); font-size: 0.875rem;">
+                                You have no pending expenses.
+                            </div>
+                        </div>
+                    `;
+                }
+
+                breakdownSection.appendChild(card);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

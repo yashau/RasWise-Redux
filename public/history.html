@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense History - RasWise</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/miniapp.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Expense History</h1>
+            <p id="group-name">Loading...</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-filter="recent">Recent</button>
+            <button class="tab" data-filter="all">All Time</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading expense history...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">📭</div>
+            <h2>No Expenses Yet</h2>
+            <p>This group doesn't have any expenses recorded yet.</p>
+        </div>
+
+        <div id="history-list" class="expense-list" style="display: none;"></div>
+    </div>
+
+    <script src="/miniapp.js"></script>
+    <script>
+        const params = MiniApp.getParams();
+        const groupId = parseInt(params.get('group_id'));
+        const userId = MiniApp.getUserId();
+
+        let allExpenses = [];
+        let currentFilter = 'recent';
+        let isAdmin = false;
+        let currency = '$';
+
+        async function init() {
+            if (!groupId || !userId) {
+                MiniApp.showError('Missing group or user information');
+                return;
+            }
+
+            // Setup back button
+            MiniApp.setupBackButton(`/app.html?group_id=${groupId}`);
+
+            try {
+                const data = await MiniApp.apiRequest('/api/history?group_id=' + groupId + '&user_id=' + userId);
+
+                document.getElementById('group-name').textContent = data.group_title || 'Group ' + groupId;
+                allExpenses = data.expenses;
+                isAdmin = data.is_admin || false;
+                currency = data.currency || '$';
+                MiniApp.hideLoading();
+
+                if (allExpenses.length === 0) {
+                    MiniApp.showEmptyState();
+                } else {
+                    displayHistory();
+                    document.getElementById('history-list').style.display = 'flex';
+                }
+
+                // Setup tab click handlers
+                document.querySelectorAll('.tab').forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        tab.classList.add('active');
+                        currentFilter = tab.dataset.filter;
+                        displayHistory();
+                        MiniApp.haptic('light');
+                    });
+                });
+            } catch (error) {
+                MiniApp.showError('Failed to load expense history');
+                console.error(error);
+            }
+        }
+
+        function filterExpenses() {
+            if (currentFilter === 'all') {
+                return allExpenses;
+            }
+
+            // Default 'recent' filter: show all incomplete expenses + completed from last 7 days
+            const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+            return allExpenses.filter(expense => {
+                if (!expense.is_complete) {
+                    return true; // Show all incomplete expenses
+                }
+                return expense.created_at >= sevenDaysAgo; // Show completed from last 7 days
+            });
+        }
+
+        function displayHistory() {
+            const listEl = document.getElementById('history-list');
+            const emptyState = document.getElementById('empty-state');
+            const filtered = filterExpenses();
+
+            listEl.innerHTML = '';
+
+            if (filtered.length === 0) {
+                emptyState.style.display = 'block';
+                listEl.style.display = 'none';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            listEl.style.display = 'flex';
+
+            filtered.forEach(expense => {
+                const card = document.createElement('div');
+                card.className = 'expense-card';
+
+                const header = document.createElement('div');
+                header.className = 'expense-header';
+
+                const leftSection = document.createElement('div');
+                leftSection.style.display = 'flex';
+                leftSection.style.alignItems = 'center';
+                leftSection.style.gap = '0.5rem';
+
+                const idBadge = document.createElement('div');
+                idBadge.className = 'expense-id-badge';
+                idBadge.textContent = '#' + expense.group_expense_number;
+
+                leftSection.appendChild(idBadge);
+
+                // Add delete button for admins (next to ID)
+                if (isAdmin) {
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-btn-inline';
+                    deleteBtn.innerHTML = '&times;';
+                    deleteBtn.title = 'Delete expense';
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteExpense(expense.id);
+                    };
+                    leftSection.appendChild(deleteBtn);
+                }
+
+                const amount = document.createElement('div');
+                amount.className = 'expense-amount';
+                amount.textContent = MiniApp.formatCurrency(expense.amount, currency);
+
+                header.appendChild(leftSection);
+                header.appendChild(amount);
+
+                const description = document.createElement('div');
+                description.className = 'expense-description';
+                description.textContent = expense.description || 'No description';
+
+                const meta = document.createElement('div');
+                meta.className = 'expense-meta';
+
+                const paidBy = document.createElement('span');
+                paidBy.className = 'meta-item';
+                paidBy.textContent = '👤 Paid by: ' + (expense.paid_by_name || 'User ' + expense.paid_by);
+                meta.appendChild(paidBy);
+
+                const date = document.createElement('span');
+                date.className = 'meta-item';
+                date.textContent = '📅 ' + MiniApp.formatDate(expense.created_at);
+                meta.appendChild(date);
+
+                if (expense.location) {
+                    const location = document.createElement('span');
+                    location.className = 'meta-item';
+                    location.textContent = '📍 ' + expense.location;
+                    meta.appendChild(location);
+                }
+
+                const splitType = document.createElement('span');
+                splitType.className = 'meta-item';
+                splitType.textContent = '🔀 ' + (expense.split_type === 'equal' ? 'Equal Split' : 'Custom Split');
+                meta.appendChild(splitType);
+
+                // Add completion status badge
+                const statusBadge = document.createElement('span');
+                statusBadge.className = 'status-badge ' + (expense.is_complete ? 'paid' : 'unpaid');
+                statusBadge.textContent = expense.is_complete ? '✓ Complete' : 'Incomplete';
+                meta.appendChild(statusBadge);
+
+                card.appendChild(header);
+                card.appendChild(description);
+                card.appendChild(meta);
+
+                // Add photos section if available
+                const hasPhotos = expense.photo_url ||
+                                 expense.vendor_payment_slip_url ||
+                                 (isAdmin && expense.all_transfer_slips && expense.all_transfer_slips.length > 0);
+
+                if (hasPhotos) {
+                    const photos = document.createElement('div');
+                    photos.className = 'expense-photos';
+
+                    if (expense.photo_url) {
+                        const billLink = document.createElement('div');
+                        billLink.className = 'photo-link';
+                        billLink.textContent = '📷 Bill Photo';
+                        billLink.onclick = () => MiniApp.openLightbox(expense.photo_url, 'Bill Photo');
+                        photos.appendChild(billLink);
+                    }
+
+                    if (expense.vendor_payment_slip_url) {
+                        const slipLink = document.createElement('div');
+                        slipLink.className = 'photo-link';
+                        slipLink.textContent = '🧾 Payment Slip';
+                        slipLink.onclick = () => MiniApp.openLightbox(expense.vendor_payment_slip_url, 'Payment Slip');
+                        photos.appendChild(slipLink);
+                    }
+
+                    // Show transfer slips carousel button for admins if there are any slips
+                    if (isAdmin && expense.all_transfer_slips && expense.all_transfer_slips.length > 0) {
+                        const transferLink = document.createElement('div');
+                        transferLink.className = 'photo-link';
+                        transferLink.textContent = `💸 Transfer Slips (${expense.all_transfer_slips.length})`;
+                        transferLink.onclick = () => {
+                            MiniApp.openLightbox(
+                                expense.all_transfer_slips,
+                                `Transfer Slips - Expense #${expense.group_expense_number}`
+                            );
+                        };
+                        photos.appendChild(transferLink);
+                    }
+
+                    card.appendChild(photos);
+                }
+
+                listEl.appendChild(card);
+            });
+        }
+
+        async function deleteExpense(expenseId) {
+            if (!confirm('Are you sure you want to delete this expense? This will remove all related data and cannot be undone.')) {
+                return;
+            }
+
+            try {
+                MiniApp.showLoading('loading', 'Deleting expense...');
+                await MiniApp.apiRequest('/api/delete-expense', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        expense_id: expenseId,
+                        group_id: groupId
+                    })
+                });
+
+                // Remove from local array and re-render
+                allExpenses = allExpenses.filter(e => e.id !== expenseId);
+                MiniApp.hideLoading();
+                displayHistory();
+                MiniApp.haptic('success');
+                MiniApp.showPopup('Expense deleted successfully');
+            } catch (error) {
+                MiniApp.hideLoading();
+                MiniApp.showError('Failed to delete expense');
+                console.error(error);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

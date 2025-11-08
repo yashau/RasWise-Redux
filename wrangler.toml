@@ -1,17 +1,23 @@
 name = "raswise-redux"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+# account_id = "" # Uncomment and fill with your Cloudflare account ID
+
+# Static assets for Mini App (CSS, JS, images)
+[assets]
+directory = "./public"
+binding = "ASSETS"
 
 # D1 Database for storing users, expenses, and splits
 [[d1_databases]]
 binding = "DB"
 database_name = "raswise_db"
-# database_id = "" # Uncomment and fill after creating the database with: wrangler d1 create raswise_db
+# database_id = "" # Uncomment and fill after creating the database
 
 # KV for storing session data
 [[kv_namespaces]]
 binding = "KV"
-# id = "" # Uncomment and fill after creating the KV namespace with: wrangler kv namespace create KV
+# id = "" # Uncomment and fill after creating the KV namespace
 
 # R2 for storing bill photos
 [[r2_buckets]]
@@ -22,6 +28,7 @@ bucket_name = "raswise-bills"
 # BOT_TOKEN will be set as a secret using: wrangler secret put BOT_TOKEN
 WEBHOOK_DOMAIN = "" # Set this to your worker domain after deployment
 R2_PUBLIC_URL = "" # Set this to your R2 bucket's public URL
+BOT_USERNAME = "" # Your bot's username (without @)
 
 # Cron trigger for daily reminders
 [triggers]
